@@ -18,6 +18,15 @@ ensure("nvim-treesitter", "https://github.com/nvim-treesitter/nvim-treesitter", 
 if vim.fn.has("linux") == 1 and not vim.env.TECTONIC_CACHE_DIR then
   vim.env.TECTONIC_CACHE_DIR = (vim.env.XDG_CACHE_HOME or (vim.env.HOME .. "/.cache")) .. "/tectonic"
 end
+-- opt/: loaded on demand (tests/test_vimtex_real.lua packadds it in a child Neovim)
+local function ensure_opt(name, url)
+  local dir = vim.fn.stdpath("data") .. "/site/pack/deps/opt/" .. name
+  if vim.uv.fs_stat(dir) then return end
+  vim.fn.mkdir(vim.fs.dirname(dir), "p")
+  local out = vim.fn.system({ "git", "clone", "--depth=1", url, dir })
+  if vim.v.shell_error ~= 0 then vim.notify("could not clone " .. name .. ": " .. out, vim.log.levels.WARN) end
+end
+ensure_opt("vimtex", "https://github.com/lervag/vimtex")
 vim.cmd("packloadall")
 for _, d in ipairs({ "/usr/local/bin", "/opt/homebrew/bin" }) do
   if not vim.env.PATH:find(d, 1, true) then vim.env.PATH = d .. ":" .. vim.env.PATH end
