@@ -300,6 +300,12 @@ image_ids.per_instance ~
     false with a distinct base per instance. :checkhealth inkmath shows the
     range in use.
 
+                                                        *inkmath.term.backend*
+term.backend ~
+    Default: `"auto"`
+    Terminal graphics backend: 'auto' detects it (kitty/Ghostty today), a name
+    forces that backend, 'none' shows no images.
+
                                                            *inkmath.cell_size*
 cell_size ~
     Default: `nil`

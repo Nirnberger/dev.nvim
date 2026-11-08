@@ -269,6 +269,13 @@ M.options = {
     doc = "Offset the range by the process id (one of 224 slots), so Neovims in one terminal (tmux panes) usually do not collide. Two instances share a slot with probability 1/224 (about 12% for 8 panes); then one's eviction or exit deletes the other's images. For a fixed setup use per_instance = false with a distinct base per instance. :checkhealth inkmath shows the range in use.",
   },
   {
+    path = "term.backend",
+    default = "auto",
+    check = oneof("auto", "kitty", "iterm2", "sixel", "none"),
+    expect = "one of 'auto', 'kitty', 'iterm2', 'sixel', 'none'",
+    doc = "Terminal graphics backend: 'auto' detects it (kitty/Ghostty today), a name forces that backend, 'none' shows no images.",
+  },
+  {
     path = "cell_size",
     default = nil,
     check = function(v) return type(v) == "table" and positive(v.w) and positive(v.h) end,
