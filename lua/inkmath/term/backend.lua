@@ -36,7 +36,9 @@ end
 
 ---@return inkmath.Backend|nil
 function M.get()
-  if memo == UNSET then memo, memo_why = M.detect() end
+  if memo == UNSET then
+    memo, memo_why = M.detect()
+  end
   return memo
 end
 
@@ -52,6 +54,8 @@ function M.why()
 end
 
 --- Detect again on the next get() (option change, FocusGained, :InkMath refresh).
-function M.reset() memo, memo_why = UNSET, nil end
+function M.reset()
+  memo, memo_why = UNSET, nil
+end
 
 return M
