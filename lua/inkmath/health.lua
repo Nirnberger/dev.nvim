@@ -13,7 +13,7 @@ local function exe(cmd, required_for)
   vim.health.warn(name .. " not found (" .. required_for .. ")")
 end
 
---- language.add returns nil, err for a missing parser on 0.11+ (and may throw on older).
+--- language.add returns nil, err for a missing parser.
 ---@param lang string
 ---@return boolean ok, string|nil err
 function M._parser_ok(lang)
@@ -102,10 +102,10 @@ end
 function M.check()
   local h = vim.health
   h.start("inkmath")
-  if vim.fn.has("nvim-0.11") == 1 then
+  if vim.fn.has("nvim-0.12") == 1 then
     h.ok("Neovim " .. tostring(vim.version()))
   else
-    h.error("Neovim >= 0.11 required")
+    h.error("Neovim >= 0.12 required")
   end
 
   for _, lang in ipairs({ "latex", "markdown", "markdown_inline" }) do

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install CI tools via `gh release download` (the github.com/.../releases/download URLs are flaky).
-# Usage: scripts/ci-tools.sh [nvim-tag]   (needs GH_TOKEN; nvim-tag e.g. v0.11.4, stable, nightly)
+# Usage: scripts/ci-tools.sh [nvim-tag]   (needs GH_TOKEN; nvim-tag e.g. v0.12.0, stable, nightly)
 # Installs tree-sitter, tectonic and ImageMagick 7 (+ghostscript) into ~/.local/bin, neovim into ~/nvim; adds them to $GITHUB_PATH.
 set -euo pipefail
 
