@@ -61,3 +61,14 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: cd worker && npm ci
       - run: make test-worker
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: stylua
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/ci-tools.sh lint
+      - run: stylua --check .
