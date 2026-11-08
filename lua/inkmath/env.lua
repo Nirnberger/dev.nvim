@@ -16,7 +16,10 @@ local function warn(cause, msg) log.once(cause, "inkmath: " .. msg .. " (:checkh
 --- Can images be shown? (kitty and tmux memoize their shell-outs.)
 ---@return {mathjax: boolean, tectonic: boolean}|nil backends, nil when not
 function M.check()
-  if not require("inkmath.term.kitty").supported() then return warn("kitty", "no kitty graphics here") end
+  local b, why = require("inkmath.term.backend").detect()
+  if not b then
+    return warn("kitty", why == "disabled by term.backend" and "term.backend is none" or "no kitty graphics here")
+  end
   local tmux = require("inkmath.term.tmux")
   if tmux.in_tmux() and not tmux.passthrough_enabled() then return warn("tmux", "tmux needs allow-passthrough") end
   local av = require("inkmath.render").available()
@@ -35,6 +38,7 @@ function M.rearm()
     log.rearm(cause)
   end
   require("inkmath.term.kitty").forget()
+  require("inkmath.term.backend").reset()
   require("inkmath.term.tmux").forget()
   require("inkmath.render.mathjax")._reset_available()
 end

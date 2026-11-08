@@ -40,6 +40,11 @@ function M.get()
   return memo
 end
 
+--- The backend to write to: callers run only after env.check() accepted the terminal, so
+--- kitty (the pre-backend behaviour) stands in when detection has nothing.
+---@return inkmath.Backend
+function M.current() return M.get() or require("inkmath.term.kitty") end
+
 ---@return string|nil reason the last get() found no backend
 function M.why()
   M.get()

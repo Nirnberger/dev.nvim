@@ -3,6 +3,7 @@
 -- first, then ids freed by eviction (oldest first); when none is left, the least
 -- recently used unpinned resident is deleted and its id reused.
 local kitty = require("inkmath.term.kitty")
+local backend = require("inkmath.term.backend")
 
 local M = {}
 
@@ -55,7 +56,8 @@ end
 --- Delete a resident image from the terminal and give its id back. notify: tell the
 --- on_drop handler (the image may still be placed).
 local function drop(id, notify)
-  kitty.send(kitty.delete_seq(id))
+  local b = backend.current()
+  b.send(b.delete(id))
   resident[id] = nil
   -- the InkMathImg<id> group stays: the id keeps meaning the same colour
   local key = keys[id]
@@ -101,8 +103,9 @@ local function transmit(id, img, keep)
     failed[id], resident[id] = true, 0
     return
   end
+  local b = backend.current()
   for _, seq in ipairs(seqs) do
-    kitty.send(seq)
+    b.send(seq)
   end
   failed[id] = nil
   resident[id] = keep or tick
