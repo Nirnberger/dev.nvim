@@ -30,6 +30,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: |
+            ~/.cache/tectonic
             ~/.cache/Tectonic
             ~/Library/Caches/Tectonic
           key: tectonic-${{ matrix.os }}-${{ hashFiles('scripts/ci-tools.sh') }}
