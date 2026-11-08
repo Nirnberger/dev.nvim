@@ -1070,4 +1070,49 @@ T["cases"]["max_formula_len"] = function()
   require("tests.expect").match(d[1].message, "too long")
 end
 
+-- With 'conceallevel' > 0 the TS highlighter parses once per screen row in the redraw
+-- after an edit (conceal_lines queries); TextChanged* run before it and parse the
+-- windows' rows in one call, so those per-row parses find a valid tree.
+T["cases"]["edit with TS highlighter and conceal: view parsed before the redraw"] = function()
+  local lines = {}
+  for i = 1, 600 do
+    lines[#lines + 1] = i % 2 == 0 and ("Para %d has $a_{%d}$ math."):format(i, i) or "Plain text."
+  end
+  local buf = setup_buf(lines)
+  vim.treesitter.start(buf, "markdown")
+  local hl = vim.treesitter.highlighter.active[buf]
+  if not (hl and hl._conceal_line) then MiniTest.skip("highlighter without conceal_lines") end
+  core.attach(buf, { sync = true })
+  eq(vim.wo.conceallevel > 0, true)
+  vim.api.nvim_win_set_cursor(0, { 300, 0 })
+  vim.cmd("normal! zz")
+  vim.cmd("redraw")
+  local top = vim.fn.line("w0") - 1
+  local view = { { top, vim.fn.line("w$") - 1 } }
+  local parser = vim.treesitter.get_parser(buf)
+  local function edit()
+    vim.api.nvim_buf_set_text(buf, 299, 0, 299, 0, { "$y$ " })
+    eq(parser:is_valid(false, view), false)
+    vim.api.nvim_exec_autocmds("TextChanged", { buffer = buf, modeline = false })
+  end
+  edit()
+  eq(parser:is_valid(false, view), true)
+  -- the redraw's per-row parses: no reparse left (each returns at once)
+  local LT = getmetatable(parser).__index
+  local p, slow = LT.parse, 0
+  LT.parse = function(self, ...)
+    local valid = self:is_valid(false, (...))
+    if not valid then slow = slow + 1 end
+    return p(self, ...)
+  end
+  local ok, err = pcall(vim.cmd, "redraw")
+  LT.parse = p
+  assert(ok, err)
+  eq(slow, 0)
+  -- conceal off in the window: the highlighter parses async, nothing done here
+  vim.wo.conceallevel = 0
+  edit()
+  eq(parser:is_valid(false, view), false)
+end
+
 return T

@@ -444,6 +444,37 @@ end
 --- the treesitter highlighter's parse synchronously.
 local function verify_view(buf) placer.verify(buf) end
 
+--- With 'conceallevel' > 0 the treesitter highlighter answers Neovim's concealed-line
+--- queries (queries with conceal_lines, e.g. markdown's) by parsing synchronously once
+--- per screen row during the redraw after an edit: each call reruns the injection
+--- query and the child parses (~150 ms in a 2000-line markdown buffer, every
+--- keystroke). TextChanged* run before that redraw: one ranged parse of the windows'
+--- rows here costs ~40 ms and leaves those per-row calls nothing to do. Its
+--- on_changedtree also feeds the incremental detection, so the refresh does not wait.
+--- Without the highlighter's conceal-line path the highlighter parses async: nothing
+--- to do here. topline from winsaveview: getwininfo/line("w$") would compute line
+--- heights, i.e. run the per-row parses this avoids.
+local function preparse_view(buf)
+  local hl = vim.treesitter.highlighter.active[buf]
+  if not (hl and hl._conceal_line and hl.tree) then return end
+  local last = vim.api.nvim_buf_line_count(buf) - 1
+  local ranges = {}
+  for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+    if vim.wo[win].conceallevel > 0 then
+      local top = vim.api.nvim_win_call(win, vim.fn.winsaveview).topline - 1
+      local h = vim.api.nvim_win_get_height(win)
+      -- below: concealed and folded rows let a window show more than its height; above:
+      -- scrolling checks rows above topline. All of them inside one range: a parse of a
+      -- row outside the last parsed range replaces its injection region by that row, and
+      -- each following row's parse then reruns the injections again.
+      ranges[#ranges + 1] = { math.max(0, top - h), math.min(last, top + 2 * h) }
+    end
+  end
+  if #ranges == 0 then return end
+  table.sort(ranges, function(a, b) return a[1] < b[1] end)
+  if not hl.tree:is_valid(false, ranges) then hl.tree:parse(ranges) end
+end
+
 local function schedule_refresh(buf, ms)
   debounce(buf, "refresh", ms or config.get(buf).debounce_ms, function() M.refresh(buf) end)
 end
@@ -640,11 +671,13 @@ function M.attach(buf, opts)
   bau({ "TextChanged" }, function()
     fill.cancel(buf)
     verify_view(buf)
+    preparse_view(buf)
     kick_refresh(buf)
   end)
   bau({ "TextChangedI" }, function()
     fill.cancel(buf)
     verify_view(buf)
+    preparse_view(buf)
     last_event[buf] = vim.uv.now()
     schedule_refresh(buf) -- typing: always debounced
   end)
