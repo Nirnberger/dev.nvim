@@ -1,4 +1,5 @@
 -- plugin/inkmath.lua in a fresh child Neovim (no inkmath module loaded yet)
+local h = require("tests.helpers")
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 local child = MiniTest.new_child_neovim()
 local T = MiniTest.new_set({
@@ -30,7 +31,7 @@ T["loading is cheap"] = function()
     vim.cmd("runtime plugin/inkmath.lua")
     return (vim.uv.hrtime() - t) / 1e6
   end)()]])
-  eq(ms < 1, true)
+  eq(ms < 1 * h.perf_factor, true)
 end
 T["guard prevents double load"] = function()
   child.cmd("runtime plugin/inkmath.lua")

@@ -54,7 +54,7 @@ fi
 
 # ImageMagick 7 (`magick`, needed by the tectonic backend) + ghostscript (PDF input)
 if [ "$(uname -s)" = Darwin ]; then
-  brew install imagemagick ghostscript
+  brew install imagemagick ghostscript tmux
 else
   command -v gs >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y ghostscript; }
   IM=ImageMagick-7.1.2-35-gcc-x86_64.AppImage
