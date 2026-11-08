@@ -546,12 +546,23 @@ Custom detectors ~
     `detect(buf, srow?, erow?)` returning `nodes, has_error`. Every node is
     `{ id, kind, src, env?, range }`:
       id     `require("inkmath.detect").node_id(kind, env, src)`
-      kind   "inline", "display" or "block"
-      src    the TeX source without delimiters
+      kind   "inline" (`$..$`), "display" (`$$..$$`, `\[..\]`) or
+             "block" (a whole `\begin{..}..\end{..}` environment)
+      src    the TeX source without delimiters (block: the environment)
       env    environment name, if any
-      range  `{ srow, scol, erow, ecol }`, 0-based, end exclusive
+      range  `{ srow = , scol = , erow = , ecol = }`: named fields, not a
+             positional array; 0-based, `erow` inclusive, `ecol` exclusive
+             (as in |nvim_buf_get_text()|)
+    `has_error`: the source has syntax errors; once a buffer has parsed
+    cleanly, inkmath then keeps the placed images and starts no renders
+    until it is clean again.
+    {srow}/{erow} are optional inclusive row bounds of the rows inkmath
+    needs; a detector may ignore them and return every node,
+    `inkmath.detect.detect` keeps only the nodes that overlap those rows.
     {spec.lang} is the treesitter language of the buffer (incremental
     detection asks for its parser; a language without a parser is fine).
+    Without {spec.ctx} formulas render without macros (tectonic: default
+    preamble).
     Example for reStructuredText `:math:` roles:
 >lua
     -- lua/rst_math.lua

@@ -122,13 +122,26 @@ In buffers they manage, a `'conceallevel'` 0 never sticks: use `:InkMath toggle`
 `require("inkmath").register_filetype(ft, spec)` teaches inkmath another filetype and
 adds it to `filetypes`. `spec.detector` is the name of a Lua module whose
 `detect(buf, srow?, erow?)` returns `nodes, has_error`. Each node is
-`{ id, kind = "inline"|"display"|"block", src, env?, range }` with a 0-based,
-end-exclusive `range = { srow, scol, erow, ecol }` and `id` from
-`require("inkmath.detect").node_id(kind, env, src)`. `spec.lang` is the treesitter
-language of the buffer (used for incremental detection; a language without a
-parser is fine), and `spec.ctx` is `"tex"`, `"markdown"` or a function
-`fun(buf): { macros?, preamble? }` that supplies macros. Example for
-reStructuredText `:math:` roles:
+`{ id, kind = "inline"|"display"|"block", src, env?, range }` with `id` from
+`require("inkmath.detect").node_id(kind, env, src)`.
+
+- `range` is a table with named fields `{ srow = , scol = , erow = , ecol = }`, not a
+  positional array: 0-based, `erow` inclusive, `ecol` exclusive (as in
+  `nvim_buf_get_text`).
+- `kind`: `"inline"` (`$..$`, `\(..\)`) and `"display"` (`$$..$$`, `\[..\]`) carry
+  `src` without delimiters; `"block"` carries a whole environment
+  (`\begin{..}..\end{..}`) as `src` and its name as `env`.
+- `has_error`: the source has syntax errors; once a buffer has parsed cleanly,
+  inkmath then keeps the placed images and starts no renders until it is clean again.
+- `srow`/`erow` are optional inclusive row bounds of the rows inkmath needs; a
+  detector may ignore them and return every node, `inkmath.detect.detect` keeps only
+  the nodes that overlap those rows.
+
+`spec.lang` is the treesitter language of the buffer (used for incremental
+detection; a language without a parser is fine), and `spec.ctx` is `"tex"`,
+`"markdown"` or a function `fun(buf): { macros?, preamble? }` that supplies macros.
+Without `spec.ctx` formulas render without macros (tectonic: default preamble).
+Example for reStructuredText `:math:` roles:
 
 ```lua
 -- lua/rst_math.lua
