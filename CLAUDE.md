@@ -24,6 +24,8 @@ protocol (Unicode placeholders; Ghostty, kitty, through tmux). Lua plugin + Node
 - Tests set a temp `XDG_CACHE_HOME`; `minit.lua` keeps tectonic's bundle cache on the real path
   (cold cache = minutes of downloads = timeouts).
 - Timing limits scale with `INKMATH_PERF_FACTOR` (CI uses 3; `helpers.perf(ms)`).
+- `tests/test_kitty_real.lua`: real kitty under `xvfb-run` (placeholders via `kitty @ get-text --ansi`, `--dump-commands`,
+  Xvfb `-fbdir` pixels). Skips without kitty/xvfb-run; `INKMATH_REQUIRE_KITTY=1` (set by ci-tools.sh on Linux) makes that a failure.
 - `tests/test_matrix.lua`: terminal env matrix + real tmux on a private socket (skips without tmux;
   `allow-passthrough all` needs tmux >= 3.4).
 

@@ -2,6 +2,7 @@
 # Install CI tools via `gh release download` (the github.com/.../releases/download URLs are flaky).
 # Usage: scripts/ci-tools.sh [nvim-tag]   (needs GH_TOKEN; nvim-tag e.g. v0.12.0, stable, nightly)
 # Installs tree-sitter, tectonic and ImageMagick 7 (+ghostscript) into ~/.local/bin, neovim into ~/nvim; adds them to $GITHUB_PATH.
+# Linux also: kitty into ~/.local/kitty.app (+ xvfb/xauth/xkb libs via apt), sets INKMATH_REQUIRE_KITTY=1 in $GITHUB_ENV.
 #        scripts/ci-tools.sh lint         installs only StyLua (Linux x86_64)
 set -euo pipefail
 
@@ -80,6 +81,24 @@ else
   (cd "$HOME/.local/opt/imagemagick" && "$TMP/$IM" --appimage-extract >/dev/null)
   printf '#!/bin/sh\nexec "$HOME/.local/opt/imagemagick/squashfs-root/AppRun" "$@"\n' > "$BIN/magick"
   chmod +x "$BIN/magick"
+
+  # kitty under Xvfb for tests/test_kitty_real.lua (macOS: nothing installed, the test skips)
+  pkgs=()
+  command -v xvfb-run >/dev/null || pkgs+=(xvfb)
+  command -v xauth >/dev/null || pkgs+=(xauth)
+  for p in libxcb-xkb1 libxkbcommon-x11-0; do
+    dpkg -s "$p" >/dev/null 2>&1 || pkgs+=("$p")
+  done
+  if [ "${#pkgs[@]}" -gt 0 ]; then sudo apt-get update -qq && sudo apt-get install -y "${pkgs[@]}"; fi
+  KITTY=kitty-0.50.0-x86_64.txz
+  gh release download v0.50.0 -R kovidgoyal/kitty -p "$KITTY" -D "$TMP"
+  verify f04b11775574d6aabfb529b7e734cc0a7d7d12c7df9fb8ec1843e45420e514ee "$TMP/$KITTY"
+  rm -rf "$HOME/.local/kitty.app"
+  mkdir -p "$HOME/.local/kitty.app"
+  tar -xJf "$TMP/$KITTY" -C "$HOME/.local/kitty.app"
+  ln -sf "$HOME/.local/kitty.app/bin/kitty" "$HOME/.local/kitty.app/bin/kitten" "$BIN/"
+  # the kitty test must run on Linux CI, never skip
+  [ -z "${GITHUB_ENV:-}" ] || echo "INKMATH_REQUIRE_KITTY=1" >> "$GITHUB_ENV"
 fi
 
 [ -z "${GITHUB_PATH:-}" ] || echo "$BIN" >> "$GITHUB_PATH"
