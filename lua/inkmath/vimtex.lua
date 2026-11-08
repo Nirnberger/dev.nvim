@@ -150,6 +150,39 @@ function M.clear_math_conceal(buf)
   return ok and res == true
 end
 
+-- Vim's own syntax/tex.vim (no vimtex) reads g:tex_conceal (default "abdmgsS") once
+-- while it defines its rules: d = delimiters, m = math symbols, g = Greek, s = super/
+-- subscripts conceal with a replacement character. Neovim draws a syntax item's cchar
+-- even inside an extmark with conceal = "" (drawline: syntax cchar before an empty
+-- decor conceal), so it would stand next to an inline image (^i -> ⁱ, \le -> ≤). The
+-- buffer's syntax is reloaded without these flags, the global restored right after.
+M.BUILTIN_MATH_FLAGS = "[dmgs]"
+local BUILTIN_DEFAULT = "abdmgsS" -- syntax/tex.vim without g:tex_conceal
+
+--- Reload the buffer's built-in tex syntax without math conceal. Returns whether it
+--- was reloaded (built-in tex syntax active and some math flag was set).
+---@param buf integer
+---@return boolean
+function M.clear_builtin_math_conceal(buf)
+  local ok, res = pcall(function()
+    local b = vim.b[buf]
+    if b.vimtex_syntax ~= nil or b.current_syntax ~= "tex" or vim.bo[buf].syntax ~= "tex" then return false end
+    local orig = vim.g.tex_conceal
+    local flags = type(orig) == "string" and orig or BUILTIN_DEFAULT
+    local patched = flags:gsub(M.BUILTIN_MATH_FLAGS, "")
+    if patched == flags then return false end
+    M._reloading[buf] = true
+    vim.g.tex_conceal = patched
+    local rok, rerr = pcall(vim.api.nvim_buf_call, buf, function() vim.cmd("let &l:syntax = &l:syntax") end)
+    vim.g.tex_conceal = orig
+    M._reloading[buf] = nil
+    if not rok then error(rerr) end
+    return true
+  end)
+  M._reloading[buf] = nil
+  return ok and res == true
+end
+
 --- Reload the buffer's syntax (undoes clear_math_conceal).
 ---@param buf integer
 function M.reload_syntax(buf)

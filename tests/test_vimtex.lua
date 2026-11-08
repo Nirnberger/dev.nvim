@@ -209,6 +209,39 @@ T["math conceal: left alone without vimtex syntax"] = function()
   eq(V().clear_math_conceal(b), false) -- invalid buffer: no error
 end
 
+-- Vim's own syntax/tex.vim (no vimtex): g:tex_conceal without d, m, g, s while it loads
+T["builtin tex syntax: math conceal cleared, text conceal and global kept"] = function()
+  local had_syntax = vim.g.syntax_on ~= nil
+  vim.cmd("syntax on")
+  local b = vim.api.nvim_create_buf(false, true)
+  local ok, err = pcall(function()
+    vim.api.nvim_win_set_buf(0, b)
+    vim.api.nvim_buf_set_lines(b, 0, -1, false, { [[$\alpha \le x^2$ \"a]] })
+    vim.bo[b].syntax = "tex"
+    local function conc(col) return vim.fn.synconcealed(1, col)[1] end
+    eq({ conc(2), conc(9), conc(14), conc(18) }, { 1, 1, 1, 1 })
+    for _, g in ipairs({ vim.NIL, "abdmgsS", "agm" }) do
+      vim.g.tex_conceal = g ~= vim.NIL and g or nil
+      vim.cmd("let &l:syntax = &l:syntax") -- the user's conceal back
+      eq(V().clear_builtin_math_conceal(b), true)
+      eq({ conc(2), conc(9), conc(14) }, { 0, 0, 0 }) -- \alpha, \le, ^2
+      eq(conc(18), 1) -- \"a (accents, a): text, kept
+      eq(vim.g.tex_conceal, g ~= vim.NIL and g or nil) -- the user's global is back
+      eq(V()._reloading[b], nil)
+    end
+    vim.g.tex_conceal = "ab" -- no math flag: nothing to reload
+    eq(V().clear_builtin_math_conceal(b), false)
+    vim.b[b].vimtex_syntax = 1 -- vimtex's syntax: clear_math_conceal's job
+    vim.g.tex_conceal = nil
+    eq(V().clear_builtin_math_conceal(b), false)
+  end)
+  vim.g.tex_conceal = nil
+  pcall(vim.api.nvim_buf_delete, b, { force = true })
+  if not had_syntax then vim.cmd("syntax off") end
+  assert(ok, err)
+  eq(V().clear_builtin_math_conceal(b), false) -- invalid buffer: no error
+end
+
 T["M1: latexmk aux_dir has precedence over out_dir"] = function()
   local d = tmpdir()
   touch(d .. "/aux/main.aux")

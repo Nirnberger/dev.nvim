@@ -611,11 +611,12 @@ local function setup_globals()
   end)
 end
 
---- Clear vimtex's math conceal in this tex buffer (unless configured to keep it).
+--- Clear the math conceal of vimtex's or Vim's own tex syntax in this tex buffer
+--- (unless configured to keep it).
 ---@param buf integer
 function M._vimtex_conceal(buf)
   if not attached[buf] or vim.bo[buf].filetype ~= "tex" or config.get().vimtex.math_conceal then return end
-  if vimtex.clear_math_conceal(buf) then cleared_conceal[buf] = true end
+  if vimtex.clear_math_conceal(buf) or vimtex.clear_builtin_math_conceal(buf) then cleared_conceal[buf] = true end
 end
 
 --- Attach: cheap checks, autocmds and conceal now; the first refresh is scheduled
