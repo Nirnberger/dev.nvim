@@ -1074,6 +1074,9 @@ end
 -- after an edit (conceal_lines queries); TextChanged* run before it and parse the
 -- windows' rows in one call, so those per-row parses find a valid tree.
 T["cases"]["edit with TS highlighter and conceal: view parsed before the redraw"] = function()
+  if vim.fn.has("nvim-0.12") == 0 then
+    return MiniTest.skip("view parse needs 0.12: LanguageTree:parse with a list of ranges")
+  end
   local lines = {}
   for i = 1, 600 do
     lines[#lines + 1] = i % 2 == 0 and ("Para %d has $a_{%d}$ math."):format(i, i) or "Plain text."

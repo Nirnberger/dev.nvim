@@ -454,7 +454,11 @@ local function verify_view(buf) placer.verify(buf) end
 --- Without the highlighter's conceal-line path the highlighter parses async: nothing
 --- to do here. topline from winsaveview: getwininfo/line("w$") would compute line
 --- heights, i.e. run the per-row parses this avoids.
+--- Neovim 0.12+ only: 0.11's highlighter has the conceal-line path too, but its
+--- LanguageTree:parse takes no list of ranges (0.11.4: throws in _range.lua on one).
+local HAS_RANGES_PARSE = vim.fn.has("nvim-0.12") == 1
 local function preparse_view(buf)
+  if not HAS_RANGES_PARSE then return end
   local hl = vim.treesitter.highlighter.active[buf]
   if not (hl and hl._conceal_line and hl.tree) then return end
   local last = vim.api.nvim_buf_line_count(buf) - 1
