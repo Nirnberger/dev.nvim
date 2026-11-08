@@ -101,7 +101,15 @@ local function launch(t, dir, doc, broken)
     if not vim.wait(3000, function() return proc:is_closing() end, 50) then pcall(vim.uv.kill, -proc.pid, "sigkill") end
     pcall(proc.wait, proc, 2000)
   end
-  function s.dump() return table.concat(log):sub(-3000) end
+  function s.dump()
+    local inner = vim.uv.fs_stat(dir .. "/inner.log") and table.concat(vim.fn.readfile(dir .. "/inner.log"), "\n") or ""
+    local rc = proc:is_closing() and proc:wait(0) or nil
+    return ("%s\n[terminal %s, %s]"):format(
+      table.concat(log):sub(-3000),
+      rc and ("exited code=%s signal=%s"):format(rc.code, rc.signal) or "still running",
+      inner ~= "" and inner or "inner command did not exit"
+    )
+  end
   return s
 end
 
