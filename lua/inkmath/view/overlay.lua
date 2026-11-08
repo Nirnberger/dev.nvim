@@ -40,17 +40,48 @@ function M.cell(win, lnum, col)
   return { row = p.row, col = p.col }
 end
 
+--- Inline marks of `buf`, per 0-based line: { col, hidden = display width the mark conceals }.
+--- screenpos() counts concealed text, so an image after a concealed formula on the same line
+--- would be painted that many cells too far right.
+---@return table<integer, {col: integer, hidden: integer}[]>
+local function concealed_inline(buf, nodes, ns)
+  local by_line = {}
+  local text = {} ---@type table<integer, string>
+  for _, e in pairs(nodes) do
+    if e.node.kind == "inline" then
+      local ok, m = pcall(vim.api.nvim_buf_get_extmark_by_id, buf, ns, e.marks[1], { details = true })
+      local d = ok and m[3]
+      if d and d.end_row == m[1] and d.end_col and d.end_col > m[2] then
+        text[m[1]] = text[m[1]] or vim.api.nvim_buf_get_lines(buf, m[1], m[1] + 1, false)[1] or ""
+        local l = by_line[m[1]] or {}
+        l[#l + 1] = { col = m[2], hidden = vim.fn.strdisplaywidth(text[m[1]]:sub(m[2] + 1, d.end_col)) }
+        by_line[m[1]] = l
+      end
+    end
+  end
+  return by_line
+end
+
 --- what should be on screen now: key -> {img, buf, row, col}
 local function wanted()
   local want = {}
+  local ns = require("inkmath.view.placer").ns
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     local buf = vim.api.nvim_win_get_buf(win)
-    for node_id, e in pairs(state.get(buf).nodes) do
-      local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, buf, require("inkmath.view.placer").ns, e.marks[1], {})
+    local nodes = state.get(buf).nodes
+    -- 'conceallevel' 1 leaves one cell per concealed block, 2 and 3 none
+    local cl = vim.wo[win].conceallevel
+    local hidden = cl > 0 and concealed_inline(buf, nodes, ns) or {}
+    for node_id, e in pairs(nodes) do
+      local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, buf, ns, e.marks[1], {})
       if ok and pos[1] then
         local c = M.cell(win, pos[1] + 1, pos[2] + 1)
         if c then
-          want[("%d:%d:%s"):format(win, buf, node_id)] = { img = e.img, buf = buf, row = c.row, col = c.col }
+          local col = c.col
+          for _, h in ipairs(hidden[pos[1]] or {}) do
+            if h.col < pos[2] then col = col - h.hidden + (cl == 1 and 1 or 0) end
+          end
+          want[("%d:%d:%s"):format(win, buf, node_id)] = { img = e.img, buf = buf, row = c.row, col = col }
         end
       end
     end
