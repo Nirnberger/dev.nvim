@@ -243,6 +243,8 @@ shoot_overlay() { # <sample file> <variant>: the variant's terminal via scripts/
   }
   fail() {
     echo "screenshots: $name ($variant): $1" >&2
+    echo "--- child status: $(cat "$ready.status" 2>/dev/null || echo none)" >&2
+    echo "--- inner command: $(cat "$d/inner.log" 2>/dev/null || echo running)" >&2
     echo "--- terminal log:" >&2
     tail -n 30 "$d/term.log" >&2
     stop

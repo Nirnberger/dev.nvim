@@ -104,10 +104,13 @@ local function launch(t, dir, doc, broken)
   function s.dump()
     local inner = vim.uv.fs_stat(dir .. "/inner.log") and table.concat(vim.fn.readfile(dir .. "/inner.log"), "\n") or ""
     local rc = proc:is_closing() and proc:wait(0) or nil
-    return ("%s\n[terminal %s, %s]"):format(
+    local st = vim.uv.fs_stat(dir .. "/ready.json.status")
+      and table.concat(vim.fn.readfile(dir .. "/ready.json.status"))
+    return ("%s\n[terminal %s, %s]\n[child status: %s]"):format(
       table.concat(log):sub(-3000),
       rc and ("exited code=%s signal=%s"):format(rc.code, rc.signal) or "still running",
-      inner ~= "" and inner or "inner command did not exit"
+      inner ~= "" and inner or "inner command did not exit",
+      st or "none"
     )
   end
   return s

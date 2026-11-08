@@ -5,6 +5,7 @@
 -- Also the child of tests/test_terminals_real.lua. Overlay backends (iTerm2, Sixel, kitty overlay):
 -- every paint is recorded (`paints`: { id, row, col, cols, rows }, 1-based screen cells, last one per
 -- image), and the ready file waits until there is one and none came for 0.5 s.
+-- Until then <ready file>.status shows what the child sees (diagnostics for a run that hangs).
 -- $INKMATH_SHOT_BACKEND forces term.backend; $INKMATH_SHOT_BREAK=1 sends the paints without their
 -- image (cursor moves only): the negative control of the pixel checks.
 local root = assert(vim.env.INKMATH_ROOT, "INKMATH_ROOT not set")
@@ -73,6 +74,21 @@ timer:start(
     local b = require("inkmath.term.backend").current()
     local painted = b.mode ~= "overlay" or (next(paints) ~= nil and vim.uv.now() - last_paint > 500)
     quiet = (seen and resolved and painted and idle(st)) and quiet + 1 or 0
+    -- diagnostics for a run that never gets ready: what the child sees right now
+    vim.fn.writefile({
+      vim.json.encode({
+        seen = seen,
+        attached = a or vim.NIL,
+        idle = idle(st),
+        backend = b.name,
+        mode = b.mode,
+        why = require("inkmath.term.backend").why() or vim.NIL,
+        cell = require("inkmath.term.cells").cell_size() or vim.NIL,
+        paints = vim.tbl_count(paints),
+        term = vim.env.TERM or vim.NIL,
+        messages = vim.fn.execute("messages"):sub(-500),
+      }),
+    }, ready_file .. ".status")
     if quiet < 5 then return end
     timer:close()
     vim.cmd("echo ''")
