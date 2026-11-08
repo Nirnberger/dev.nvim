@@ -1,0 +1,13 @@
+{
+  "name": "inkmath-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "mathjax-full": "3.2.2"
+  },
+  "devDependencies": {
+    "pngjs": "7.0.0"
+  }
+}

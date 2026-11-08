@@ -1,0 +1,641 @@
+*inkmath.txt*  Render LaTeX math as images in Neovim
+
+==============================================================================
+CONTENTS                                                    *inkmath-contents*
+
+  1. Introduction ........................................ |inkmath|
+  2. Installation ........................................ |inkmath-install|
+  3. Configuration ....................................... |inkmath-config|
+  4. Options ............................................. |inkmath-options|
+  5. Per-filetype overrides .............................. |inkmath-overrides|
+  6. Commands ............................................ |inkmath-commands|
+  7. Mappings ............................................ |inkmath-mappings|
+  8. Lua API ............................................. |inkmath-api|
+  9. Events .............................................. |inkmath-events|
+ 10. Highlights ...................................... |inkmath-highlights|
+ 11. Other plugins ....................................... |inkmath-interop|
+ 12. Health .............................................. |inkmath-health|
+ 13. Limitations .................................... |inkmath-limitations|
+
+==============================================================================
+1. INTRODUCTION                                                      *inkmath*
+
+inkmath renders the LaTeX math of `tex`, `markdown`, `quarto` and `rmd`
+buffers as images,
+using the kitty graphics protocol (Ghostty, kitty, also through tmux). Inline
+math sits on the text baseline, display math is centered, and the formula
+under the cursor shows its source, with a live preview float while you type in
+insert mode.
+
+Formulas are rendered by a MathJax worker (node) and, as a fallback or by
+choice, by tectonic + ImageMagick. Images are cached on disk.
+
+==============================================================================
+2. INSTALLATION                                              *inkmath-install*
+
+Requirements:
+- Neovim >= 0.11 with the treesitter parsers `latex`, `markdown` and
+  `markdown_inline`.
+- 'termguicolors' on: image ids travel as the placeholder's 24-bit color.
+- Ghostty or kitty (>= 0.28). Inside tmux: tmux >= 3.3 with
+  `set -g allow-passthrough on` and `set -as terminal-features ',*:RGB'`.
+- MathJax backend: node >= 18; run |:InkMath| build once (npm ci).
+- tectonic backend / fallback: `tectonic`, ImageMagick (`magick`) and
+  Ghostscript.
+
+With lazy.nvim: >lua
+    { dir = "/path/to/inkmath.nvim", build = ":InkMath build" }
+<
+The plugin works without calling `setup()`: |:InkMath| exists at startup and
+buffers of the configured filetypes are attached on |FileType|. Loading the
+plugin costs well under a millisecond; its modules load on first use.
+
+                                                          *inkmath-performance*
+Typing never waits for inkmath: an edit whose rows hold no math trigger (`$`,
+`\(`, `\[`, `\begin`, `%`, ...) only shifts the known formulas; otherwise the
+syntax tree is parsed in the background (3 ms slices) or by the treesitter
+highlighter, and the refresh after it detects the changed rows. Attaching a
+buffer takes well under 10 ms: the first refresh runs right after it and
+detects only the rows on screen. While you are idle, the rest of the buffer is
+detected and its formulas rendered to the disk cache in the background
+(`fill`), a few per step; they are shown, from the cache, when scrolled to.
+Images are placed only near the windows (`keep_screens`), so the terminal holds
+about `max_images` of them however long the document. No MathJax worker starts
+until a formula is not in the cache (or you enter insert mode). The image cache
+is capped (`cache.max_size_mb`): the least recently used images are deleted
+(never one still shown).
+
+==============================================================================
+3. CONFIGURATION                                              *inkmath-config*
+
+Options come in layers, later ones win:
+  1. the defaults (|inkmath-options|),
+  2. `vim.g.inkmath`, a table read before the first use, so it can be set
+     before the plugin loads,
+  3. `require("inkmath").setup(opts)`, which may be called more than once:
+     each call extends the previous ones and is applied to open buffers at
+     once,
+  4. `overrides[filetype]` (|inkmath-overrides|).
+>lua
+    vim.g.inkmath = { scale = 1.1 }
+    -- or
+    require("inkmath").setup({ scale = 1.1, inline = { promote = true } })
+<
+Invalid values are reported in one error message that lists every bad key;
+`setup()` then returns false and the previous configuration stays in effect.
+Unknown keys only warn, with a suggestion for a likely typo.
+
+Disabling:
+- `vim.g.inkmath_disable = true`: nothing is attached (|:InkMath|! enable
+  turns it back on).
+- `vim.b.inkmath_disable = true` (e.g. in an ftplugin): this buffer is not
+  attached automatically.
+- `enabled = function(buf) ... end`: decide per buffer.
+- Buffers with a 'buftype', larger than `max_file_size` or shown only in
+  floating windows are not attached automatically; `:InkMath enable` still
+  attaches them.
+
+Conceal: for attached buffers the window-local 'conceallevel' and
+'concealcursor' are set (restored on `:InkMath disable`). The defaults
+`level = 2`, `cursor = "nvic"` hide the source behind the image, also on the
+cursor line. They apply to all conceal in those windows (markdown link URLs,
+syntax conceal); `conceal = { level = 2, cursor = "" }` keeps the cursor
+line's source visible in every mode. Setting 'conceallevel' to 0 in a window
+hides the buffer's images there until it is set above 0 again.
+                                                      *inkmath-conceal-sticky*
+When you set it yourself, it also stays 0 when the buffer is shown in that
+window again. "Yourself" means all of:
+- it is written while a key you typed is being handled: a typed `:setlocal`
+  or `:set`, or a mapping (e.g. one running `:setlocal conceallevel=0` or a
+  Lua toggle). A write from a |vim.schedule()| or timer callback never counts,
+  nor does `:setglobal` or a modeline;
+- it is written in the window you are in, not inside a |ModeChanged|,
+  |BufWinEnter|, |WinEnter| or |FileType| handler;
+- neither render-markdown nor markview is attached to the buffer: they write
+  'conceallevel' themselves (per mode, and from commands such as
+  `:RenderMarkdown disable`), so inkmath cannot tell your 0 from theirs. Use
+  `:InkMath toggle` (or `<Plug>(inkmath-toggle)`) in those buffers.
+Any other 0 hides the images only while it lasts. Setting a value above 0
+ends the stickiness for that window.
+
+`conceal = false`: inkmath never writes 'conceallevel' or 'concealcursor'
+(use this when another plugin, e.g. render-markdown, manages them). Images
+are hidden while a window showing the buffer has 'conceallevel' 0; levels
+below 2 show concealed text (|inkmath-health| warns).
+
+==============================================================================
+4. OPTIONS                                                   *inkmath-options*
+
+This section is generated from the option schema (`make doc`).
+
+<!-- BEGIN OPTIONS -->
+                                                           *inkmath.filetypes*
+filetypes ~
+    Default: `{ "tex", "markdown", "quarto", "rmd" }`
+    Filetypes attached automatically (each needs a detector registration).
+
+                                                             *inkmath.enabled*
+enabled ~
+    Default: `true`  (also in |inkmath-overrides|)
+    Auto-attach switch; a function decides per buffer (errors count as false).
+
+                                                       *inkmath.max_file_size*
+max_file_size ~
+    Default: `2`
+    Buffers larger than this many MiB are not attached automatically.
+
+                                                             *inkmath.backend*
+backend ~
+    Default: `"mathjax"`  (also in |inkmath-overrides|)
+    Renderer: MathJax worker (fast) or tectonic (full TeX).
+
+                                                            *inkmath.fallback*
+fallback ~
+    Default: `true`  (also in |inkmath-overrides|)
+    Retry with tectonic when MathJax rejects a formula.
+
+                                                           *inkmath.highlight*
+highlight ~
+    Default: `"Normal"`  (also in |inkmath-overrides|)
+    Highlight group whose foreground colors the math.
+
+                                                               *inkmath.scale*
+scale ~
+    Default: `1`  (also in |inkmath-overrides|)
+    Size factor applied to every image.
+
+                                                     *inkmath.inline.x_height*
+inline.x_height ~
+    Default: `0.45`  (also in |inkmath-overrides|)
+    Height of an x in cell heights; sets the size of inline math.
+
+                                                     *inkmath.inline.baseline*
+inline.baseline ~
+    Default: `0.78`  (also in |inkmath-overrides|)
+    Text baseline position in the cell, from the top (fraction of the cell
+    height).
+
+                                                      *inkmath.inline.promote*
+inline.promote ~
+    Default: `false`  (also in |inkmath-overrides|)
+    Show tall inline formulas as an extra display image below the line.
+
+                                                *inkmath.inline.promote_ratio*
+inline.promote_ratio ~
+    Default: `1.6`  (also in |inkmath-overrides|)
+    Height (in cells) above which an inline formula is promoted.
+
+                                                      *inkmath.display.center*
+display.center ~
+    Default: `true`  (also in |inkmath-overrides|)
+    Center display math in the text width (kept for compatibility: display
+    math is always centered).
+
+                                                     *inkmath.preview.enabled*
+preview.enabled ~
+    Default: `true`  (also in |inkmath-overrides|)
+    Live preview float while typing inside a formula in insert mode.
+
+                                                 *inkmath.preview.debounce_ms*
+preview.debounce_ms ~
+    Default: `50`  (also in |inkmath-overrides|)
+    Delay before the preview updates.
+
+                                                      *inkmath.preview.border*
+preview.border ~
+    Default: `nil`  (also in |inkmath-overrides|)
+    Preview float border (see 'winborder'); nil: 'winborder' if set, else
+    "rounded".
+
+                                                    *inkmath.preview.position*
+preview.position ~
+    Default: `"below"`  (also in |inkmath-overrides|)
+    Preview float below the formula or above it.
+
+                                                 *inkmath.preview.error_lines*
+preview.error_lines ~
+    Default: `3`  (also in |inkmath-overrides|)
+    Lines of a TeX error the preview float shows instead of the image; 0
+    closes the float on an error.
+
+                                                       *inkmath.render.inline*
+render.inline ~
+    Default: `true`  (also in |inkmath-overrides|)
+    Render inline math ($...$, \(...\)).
+
+                                                      *inkmath.render.display*
+render.display ~
+    Default: `true`  (also in |inkmath-overrides|)
+    Render display math and environments ($$...$$, \[...\], equation, ...).
+
+                                                     *inkmath.max_formula_len*
+max_formula_len ~
+    Default: `4000`  (also in |inkmath-overrides|)
+    Formulas with longer source are not rendered (shown as an error).
+
+                                                         *inkmath.debounce_ms*
+debounce_ms ~
+    Default: `80`  (also in |inkmath-overrides|)
+    Delay before images update while edits or scrolls keep coming (a single
+    edit in normal mode, a jump or a scroll after a quiet spell updates at
+    once; typing in insert mode always waits).
+
+                                                        *inkmath.fill.enabled*
+fill.enabled ~
+    Default: `true`
+    Render formulas off-screen to the disk cache in the background while you
+    are idle (and detect rows a large edit left stale); they are shown, from
+    the cache, when scrolled to.
+
+                                                  *inkmath.fill.rows_per_step*
+fill.rows_per_step ~
+    Default: `300`
+    Rows the background fill handles per step.
+
+                                                       *inkmath.fill.max_jobs*
+fill.max_jobs ~
+    Default: `4`
+    Renders (not cached) the background fill queues per step.
+
+                                                        *inkmath.keep_screens*
+keep_screens ~
+    Default: `3`
+    Images stay placed within this many window heights above and below each
+    window showing the buffer; farther ones are cleared (and may be deleted
+    from the terminal), and placed again from the disk cache when scrolled
+    back to. Lowered to 1 for a buffer while more than max_images would stay
+    placed.
+
+                                                          *inkmath.max_images*
+max_images ~
+    Default: `512`
+    Images kept in the terminal (those placed near the windows, see
+    keep_screens, and recently used ones) before the least recently used are
+    deleted.
+
+                                                             *inkmath.workers*
+workers ~
+    Default: `2`
+    MathJax worker processes (renders run in parallel).
+
+                                                      *inkmath.image_ids.base*
+image_ids.base ~
+    Default: `2097152`
+    First kitty image id inkmath uses (ids are 24-bit: at most 0xFFFFFF);
+    image_ids is read when the first image is shown.
+
+                                                      *inkmath.image_ids.span*
+image_ids.span ~
+    Default: `65536`
+    Number of ids per Neovim instance; at least 2 * max_images (resident
+    images stay near max_images, so ids do not run out).
+
+                                              *inkmath.image_ids.per_instance*
+image_ids.per_instance ~
+    Default: `true`
+    Offset the range by the process id (one of 224 slots), so Neovims in one
+    terminal (tmux panes) usually do not collide. Two instances share a slot
+    with probability 1/224 (about 12% for 8 panes); then one's eviction or
+    exit deletes the other's images. For a fixed setup use per_instance =
+    false with a distinct base per instance. :checkhealth inkmath shows the
+    range in use.
+
+                                                           *inkmath.cell_size*
+cell_size ~
+    Default: `nil`
+    Terminal cell size in pixels, e.g. { w = 9, h = 18 }; nil detects it.
+
+                                                            *inkmath.node_cmd*
+node_cmd ~
+    Default: `"node"`
+    Node.js command for the MathJax worker (string or argv prefix list).
+
+                                                        *inkmath.tectonic_cmd*
+tectonic_cmd ~
+    Default: `"tectonic"`
+    tectonic command (string or argv prefix list).
+
+                                                          *inkmath.magick_cmd*
+magick_cmd ~
+    Default: `"magick"`
+    ImageMagick command for the tectonic pipeline (string or argv prefix
+    list).
+
+                                                           *inkmath.cache_dir*
+cache_dir ~
+    Default: `nil`
+    Image cache directory; nil: stdpath("cache") .. "/inkmath".
+
+                                                   *inkmath.cache.max_size_mb*
+cache.max_size_mb ~
+    Default: `200`
+    Size cap of the image cache; the least recently used images are deleted
+    (10 s after the first attach, then every 200 renders).
+
+                                                 *inkmath.timeouts.mathjax_ms*
+timeouts.mathjax_ms ~
+    Default: `10000`
+    A MathJax render taking longer kills its worker.
+
+                                                *inkmath.timeouts.tectonic_ms*
+timeouts.tectonic_ms ~
+    Default: `120000`
+    A tectonic job taking longer fails its formulas.
+
+                                                              *inkmath.macros*
+macros ~
+    Default: `{}`  (also in |inkmath-overrides|)
+    Extra MathJax macros, e.g. { RR = "\\mathbb{R}" }.
+
+                                                             *inkmath.conceal*
+conceal ~
+    Default: `{ cursor = "nvic", level = 2 }`  (also in |inkmath-overrides|)
+    Window-local conceal options for attached buffers; false: never written
+    (another plugin or you manage them).
+
+                                                       *inkmath.conceal.level*
+conceal.level ~
+    Default: `2`  (also in |inkmath-overrides|)
+    'conceallevel' set in windows showing attached buffers.
+
+                                                      *inkmath.conceal.cursor*
+conceal.cursor ~
+    Default: `"nvic"`  (also in |inkmath-overrides|)
+    'concealcursor' set in windows showing attached buffers.
+
+                                                    *inkmath.equation_numbers*
+equation_numbers ~
+    Default: `"document"`  (also in |inkmath-overrides|)
+    LaTeX without an .aux file: "document" numbers equations in document order
+    like LaTeX (an align after an equation continues at (2)); "formula"
+    numbers each formula on its own. Numbers from the .aux file (vimtex) win
+    either way.
+
+                                                 *inkmath.vimtex.math_conceal*
+vimtex.math_conceal ~
+    Default: `false`
+    false: clear vimtex's math conceal (\alpha -> α) so a revealed formula
+    shows its source.
+
+                                                           *inkmath.log.level*
+log.level ~
+    Default: `"warn"`
+    Least severe message shown.
+
+                                                           *inkmath.overrides*
+overrides ~
+    Default: `{}`
+    Per-filetype options, e.g. { markdown = { scale = 1.2 } } (buffer-scoped
+    options only).
+<!-- END OPTIONS -->
+
+==============================================================================
+5. PER-FILETYPE OVERRIDES                                  *inkmath-overrides*
+
+`overrides` maps a filetype to options that apply to its buffers only: >lua
+    require("inkmath").setup({
+      overrides = {
+        markdown = { scale = 1.2, inline = { baseline = 0.8 } },
+        tex = { backend = "tectonic" },
+      },
+    })
+<
+Only options marked "also in |inkmath-overrides|" in |inkmath-options| are
+allowed there; process-wide ones (`workers`, `max_images`, `cache_dir`, ...)
+are rejected with an error.
+
+==============================================================================
+6. COMMANDS                                                 *inkmath-commands*
+
+                                                                    *:InkMath*
+:InkMath {sub}          Act on the current buffer.
+:InkMath! {sub}         Act on every buffer (the global switch), for `enable`,
+                        `disable` and `toggle`.
+
+Subcommands (completed with <Tab>):
+  enable        Render math in this buffer. Also attaches buffers that the
+                automatic guards skip (scratch buffers, large files).
+  disable       Stop rendering in this buffer. It stays disabled across
+                `:e!`, `:set filetype=` and `setup()` until `enable`.
+  toggle        `enable` or `disable`.
+  refresh       Re-render the current buffer. Also checks the terminal, tmux
+                and the backend again (so a fixed setup is picked up and a
+                broken one warns again); |FocusGained| does the same.
+  clear-cache   Delete the image cache and render again; reports how many
+                files were deleted.
+  build         Install the MathJax worker's dependencies (npm ci). On
+                success, buffers that could not attach for lack of a backend
+                are attached.
+  status        Print the backends, the running MathJax workers and their
+                pending requests, the render queue per buffer, the cache
+                (directory, files, size of `cache.max_size_mb`), the kitty id
+                range with the images resident in the terminal against
+                `max_images`, and the attached buffers with their formula,
+                placed image and error counts and the background fill state
+                (`running`, `done`, `pending` or `off`).
+
+==============================================================================
+7. MAPPINGS                                                 *inkmath-mappings*
+
+No keys are mapped by default. These <Plug> mappings (normal mode) can be
+bound: >lua
+    vim.keymap.set("n", "<leader>m", "<Plug>(inkmath-toggle)")
+<
+  <Plug>(inkmath-toggle)          toggle this buffer
+  <Plug>(inkmath-toggle-global)   toggle every buffer
+  <Plug>(inkmath-enable)          enable this buffer
+  <Plug>(inkmath-disable)         disable this buffer
+  <Plug>(inkmath-refresh)         re-render this buffer
+
+==============================================================================
+8. LUA API                                                       *inkmath-api*
+
+`require("inkmath")` exposes the functions below. For the switches, {buf} nil
+means the global switch (`g:inkmath_disable`) and 0 the current buffer.
+
+setup({opts})                                                *inkmath.setup()*
+    Extend the configuration (|inkmath-config|). Returns false when {opts}
+    are invalid.
+
+enable({buf})                                               *inkmath.enable()*
+disable({buf})                                             *inkmath.disable()*
+toggle({buf})                                               *inkmath.toggle()*
+    Global: set or clear `g:inkmath_disable` and attach or detach every
+    buffer. Buffer: attach it (also scratch buffers and large files) or
+    detach it; a disabled buffer stays disabled across `:e!`, `:set ft=` and
+    `setup()` until enabled again. Fires |InkMathToggle|.
+
+is_enabled({buf})                                       *inkmath.is_enabled()*
+    {buf} nil: the global switch is on. Otherwise: the buffer is attached.
+
+refresh({buf})                                             *inkmath.refresh()*
+    Re-render a buffer (default: the current one).
+
+clear_cache()                                          *inkmath.clear_cache()*
+    Delete the image cache and render every attached buffer again.
+
+get_formulas({buf}, {range})                          *inkmath.get_formulas()*
+    The formulas of {buf} (default: current) in source order. {range}
+    `{ srow, erow }` (0-based rows, inclusive) keeps those overlapping it.
+    Each item: >lua
+      { id = "…#1", kind = "inline"|"display"|"block", src = "x^2",
+        env = "align",   -- blocks only
+        range = { srow, scol, erow, ecol },   -- 0-based, end exclusive
+        rendered = true, -- an image is shown (or revealed under the cursor)
+        error = "…" }    -- the render error, if any
+<
+    An attached buffer reuses its last detection when it is unchanged.
+
+formula_at_cursor({win})                         *inkmath.formula_at_cursor()*
+    The formula under the cursor of {win} (default: current), as in
+    |inkmath.get_formulas()|, or nil. In insert mode the position right
+    after the closing delimiter counts, like the cursor reveal.
+
+render({tex}, {opts}, {cb})                                 *inkmath.render()*
+    Render a TeX string outside any buffer, with the global configuration.
+    {opts}: `kind` ("inline" default, or "display"), `color` ("#rrggbb",
+    default: the `highlight` group), `scale`, `width` (columns a display
+    formula is centered in, default 'columns'), `macros` (added to the
+    configured ones). {cb}`(res, err)` runs once; `res`: >lua
+      { path = "/…/x.png", cols = 3, rows = 1, width = 30, height = 20,
+        key = "…" }   -- width/height in pixels
+<
+placeholder({res})                                     *inkmath.placeholder()*
+    Send the image of a |inkmath.render()| result to the terminal and return
+    `{ lines, hl, id }`: Unicode placeholder lines that show it when drawn
+    with highlight `hl` (e.g. in your own float). The image stays in the
+    terminal until |inkmath.release()|.
+>lua
+    local im = require("inkmath")
+    im.render("e^{i\\pi}+1=0", {}, function(res)
+      if not res then return end
+      local ph = im.placeholder(res)
+      local b = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(b, 0, -1, false, ph.lines)
+      for i = 0, #ph.lines - 1 do
+        vim.hl.range(b, vim.api.nvim_create_namespace("x"), ph.hl,
+          { i, 0 }, { i, -1 })
+      end
+      vim.api.nvim_open_win(b, false, { relative = "cursor", row = 1,
+        col = 0, width = res.cols, height = res.rows, style = "minimal" })
+    end)
+<
+release({id})                                              *inkmath.release()*
+    Let the image of a |inkmath.placeholder()| be evicted again.
+
+register_filetype({ft}, {spec})                  *inkmath.register_filetype()*
+    Detect math in another filetype, add it to `filetypes` and attach its
+    open buffers. {spec}:
+      lang      treesitter language the detector parses
+      detector  module with `detect(buf, srow?, erow?)`, e.g.
+                "inkmath.detect.markdown"
+      ctx       "tex", "markdown" (where macros come from) or a function
+                `fun(buf): { macros?, preamble? }`
+>lua
+    require("inkmath").register_filetype("mdx", {
+      lang = "markdown",
+      detector = "inkmath.detect.markdown",
+      ctx = "markdown",
+    })
+<
+==============================================================================
+9. EVENTS                                                     *inkmath-events*
+
+inkmath fires `User` autocmds named `InkMath<name>`; the data table is in
+`ev.data`: >lua
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "InkMathRender",
+      callback = function(ev) print(ev.data.placed, ev.data.errors) end,
+    })
+<
+InkMathAttach                                                  *InkMathAttach*
+InkMathDetach                                                  *InkMathDetach*
+    `{ buf }`: a buffer was attached / detached.
+
+InkMathToggle                                                  *InkMathToggle*
+    `{ buf, enabled, scope }`: |inkmath.enable()| and friends ran. `scope`
+    is "buffer" or "global" (then `buf` is nil).
+
+InkMathRender                                                  *InkMathRender*
+    `{ buf, placed, errors, srow, erow }`: once per refresh of a buffer,
+    when all its renders finished (never per formula). `placed`: images
+    shown, `errors`: formulas that failed, `srow`..`erow`: the rows that
+    refresh scanned (0-based, inclusive).
+
+==========
+10. HIGHLIGHTS                                            *inkmath-highlights*
+
+All are defined with `default = true`, so a colorscheme or your config can set
+them first.
+
+  InkMathError           formulas that failed to render
+                         (default: DiagnosticUnderlineError)
+  InkMathPreviewBorder   border of the preview float (default: FloatBorder)
+  InkMathPreviewError    errors shown in the preview (default:
+                         DiagnosticError)
+
+The color of the math itself is the foreground of the `highlight` option's
+group (default `Normal`).
+
+==============================================================================
+11. OTHER PLUGINS                                            *inkmath-interop*
+
+vimtex is optional. With it, macros and the tectonic preamble of a subfile
+come from the project's root file, labeled equations get their number from the
+last compile's `.aux` file, and vimtex's math conceal is turned off in
+attached buffers (`vimtex.math_conceal = true` keeps it).
+
+Quarto and R Markdown: `quarto` and `rmd` buffers are detected like markdown.
+They are in the default `filetypes`. Loading inkmath registers the markdown
+treesitter parser for them (|vim.treesitter.language.register()|), unless a
+parser is registered for them already; this also changes their highlighting,
+even when you remove them from `filetypes`.
+
+Other plugins that render LaTeX math draw over inkmath's images; turn their
+math off in your own plugin spec (|inkmath-health| checks these, without
+loading them, and prints the setting). With lazy.nvim:
+- render-markdown.nvim: >lua
+    { "MeanderingProgrammer/render-markdown.nvim",
+      opts = { latex = { enabled = false } } }
+<
+- markview.nvim (also without setup()): >lua
+    { "OXY2DEV/markview.nvim", opts = { latex = { enable = false } } }
+<
+- snacks.nvim, when its `image` snack is enabled: >lua
+    { "folke/snacks.nvim",
+      opts = { image = { enabled = true, math = { enabled = false } } } }
+<
+render-markdown and markview also set 'conceallevel' per mode. Use
+`overrides = { markdown = { conceal = false } }` (or `conceal = false`) so
+inkmath leaves the conceal options to them; images are then hidden whenever a
+window shows the buffer with 'conceallevel' 0. In buffers they manage, a 0
+never sticks (|inkmath-conceal-sticky|).
+
+image.nvim deletes every image in the terminal when it clears its own (kitty
+`d=a`), inkmath's included; inkmath sends them again on |FocusGained| and
+|VimResized|. inkmath itself only ever deletes its own ids (`image_ids`), also
+at exit.
+
+==============================================================================
+12. HEALTH                                                    *inkmath-health*
+
+`:checkhealth inkmath` checks Neovim, the treesitter parsers, the terminal's
+graphics support, 'termguicolors', tmux passthrough, the configured commands
+(`node_cmd`, `tectonic_cmd`, `magick_cmd`) and the cell size. A second
+section checks other plugins: LaTeX rendering in render-markdown, markview and
+snacks.image (with the setting that turns it off), image.nvim, and windows of
+attached buffers whose 'conceallevel' is below 2. It prints the kitty image id
+range in use (`image_ids`).
+
+==============================================================================
+13. LIMITATIONS                                          *inkmath-limitations*
+
+- Each formula renders standalone, so numbered equations show (1) unless a
+  vimtex project was compiled (|inkmath-interop|).
+- The display width comes from the first window showing the buffer.
+- An unclosed `$` or `{` breaks the parse of the rest of a LaTeX document;
+  while it lasts the images already shown are kept and nothing new renders.
+- Display images whose first line is in a closed fold are not placed.
+- Typst, org and terminals other than Ghostty/kitty are not supported.
+
+ vim:tw=78:ts=8:ft=help:norl:

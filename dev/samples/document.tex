@@ -1,0 +1,41 @@
+\documentclass{article}
+\usepackage{amsmath,amssymb}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\inner}[2]{\langle #1, #2 \rangle}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\def\eps{\varepsilon}
+
+\begin{document}
+
+Inline math such as $e^{i\pi} + 1 = 0$ or \(\norm{x} \le \eps\) sits in the text,
+and $\inner{u}{v}$ with $x \in \R$ shares a line.
+
+\[ \int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2} \]
+
+\begin{equation}
+  \argmin_{x \in \R} \norm{Ax - b}^2 = (A^T A)^{-1} A^T b
+\end{equation}
+
+\begin{align}
+  f(x) &= (x+1)^2 \\
+       &= x^2 + 2x + 1 \\
+  f'(x) &= 2x + 2
+\end{align}
+
+\begin{gather*}
+  a^2 + b^2 = c^2 \\
+  \sin^2\theta + \cos^2\theta = 1
+\end{gather*}
+
+\[
+  |x| = \begin{cases} x & x \ge 0 \\ -x & x < 0 \end{cases}
+\]
+
+\[
+  M = \begin{pmatrix} a & b \\ c & d \end{pmatrix}
+\]
+
+The price is \$5 and not math, but $\$5 + x$ is.
+
+\end{document}
