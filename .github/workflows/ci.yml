@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lua:
+    name: nvim ${{ matrix.nvim }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.nvim == 'nightly' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        nvim: [v0.11.4, stable, nightly]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.nvim }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: tree-sitter CLI
+        run: npm i -g tree-sitter-cli
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/inkmath-dev
+          key: deps-${{ matrix.os }}-${{ matrix.nvim }}-${{ hashFiles('tests/minit.lua') }}
+      - name: worker deps
+        run: cd worker && npm ci
+      - name: tests
+        run: make test
+
+  worker:
+    name: node ${{ matrix.node }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: cd worker && npm ci
+      - run: make test-worker
