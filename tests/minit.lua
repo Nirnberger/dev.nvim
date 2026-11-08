@@ -13,6 +13,16 @@ local function ensure(name, url, branch)
 end
 ensure("mini.nvim", "https://github.com/echasnovski/mini.nvim")
 ensure("nvim-treesitter", "https://github.com/nvim-treesitter/nvim-treesitter", "main")
+if vim.fn.has("nvim-0.12") == 0 then
+  -- nvim-treesitter main dropped Nvim 0.11 in c82bf96f0a; pin the last commit before it
+  local dir = base .. "nvim-treesitter"
+  local sha = "90cd6580e720caedacb91fdd587b747a6e77d61f"
+  if vim.trim(vim.fn.system({ "git", "-C", dir, "rev-parse", "HEAD" })) ~= sha then
+    local out = vim.fn.system({ "git", "-C", dir, "fetch", "--unshallow", "--quiet" })
+    out = out .. vim.fn.system({ "git", "-C", dir, "checkout", "--quiet", sha })
+    assert(vim.v.shell_error == 0, out)
+  end
+end
 -- Several test files point XDG_CACHE_HOME at an empty dir (isolated render cache). Tectonic
 -- follows it on Linux and would re-download its whole bundle each time, so pin its cache first.
 if vim.fn.has("linux") == 1 and not vim.env.TECTONIC_CACHE_DIR then

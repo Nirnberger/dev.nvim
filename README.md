@@ -7,7 +7,9 @@ source with a live preview float while you type.
 
 ## Requirements
 
-- Neovim >= 0.11 with treesitter parsers `latex`, `markdown`, `markdown_inline`
+- Neovim >= 0.11 with treesitter parsers `latex`, `markdown`, `markdown_inline`.
+  On Neovim 0.11, [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) `main`
+  no longer works (it requires 0.12 since c82bf96); use it up to and including commit `90cd658`.
 - `termguicolors` on: each image id is sent as the placeholder's 24-bit foreground
   color (inside tmux the client also needs the `RGB` terminal feature, see below)
 - Ghostty or kitty (>= 0.28); inside tmux: tmux >= 3.3 with `allow-passthrough on`

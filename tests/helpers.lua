@@ -1,5 +1,8 @@
 local M = {}
 
+--- Multiplier for wall-clock limits in perf tests (INKMATH_PERF_FACTOR, default 1; shared CI runners are noisy).
+M.perf_factor = tonumber(vim.env.INKMATH_PERF_FACTOR) or 1
+
 ---@param lines string[]
 ---@param ft string
 ---@return integer

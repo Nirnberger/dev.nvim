@@ -76,7 +76,8 @@ T["detect is fast on a large buffer"] = function()
     latex.detect(b)
     best = math.min(best, (vim.uv.hrtime() - t0) / 1e6)
   end
-  assert(best < 40, ("latex.detect took %.1f ms"):format(best))
+  local limit = 40 * h.perf_factor
+  assert(best < limit, ("latex.detect took %.1f ms (limit %.0f)"):format(best, limit))
 end
 
 T["row-bounded detect matches the full result"] = function()

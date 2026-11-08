@@ -42,6 +42,8 @@ jobs:
       - name: worker deps
         run: cd worker && npm ci
       - name: tests
+        env:
+          INKMATH_PERF_FACTOR: 3
         run: make test
 
   worker:
