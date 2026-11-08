@@ -366,7 +366,7 @@ M.options = {
     path = "vimtex.math_conceal",
     default = false,
     check = "boolean",
-    doc = "false: clear vimtex's math conceal (\\alpha -> α) so a revealed formula shows its source.",
+    doc = "false: clear the math conceal (\\alpha -> α) of vimtex or of Vim's own syntax/tex.vim (g:tex_conceal flags d, m, g, s), so a revealed formula shows its source and no conceal character stands next to an inline image. true keeps it (those characters then show next to inline images).",
   },
   {
     path = "log.level",

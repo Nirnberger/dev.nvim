@@ -786,9 +786,52 @@ T["cases"]["vimtex math conceal is cleared on attach and after Syntax"] = functi
   assert(ok, err)
 end
 
+local PH = "\u{10EEEE}" -- kitty unicode placeholder: an image cell on screen
+
+--- screen text of buffer line `lnum` after a redraw: image cells as "#", trailing blanks cut
+local function screen_line(lnum)
+  vim.cmd("redraw!")
+  local p = vim.fn.screenpos(0, lnum, 1)
+  local out = {}
+  for c = p.col, vim.o.columns do
+    local s = vim.fn.screenstring(p.row, c)
+    out[#out + 1] = s:find(PH, 1, true) and "#" or s
+  end
+  return (table.concat(out):gsub("%s+$", ""))
+end
+
+-- Vim's own syntax/tex.vim conceals math with replacement characters (^i -> ⁱ, \le -> ≤,
+-- \in -> ∈). A syntax item's cchar is drawn even under our conceal = "" extmark, so it
+-- stood next to the image and made the line longer (wrapped earlier than it should).
+T["cases"]["inline image: no conceal characters of Vim's tex syntax next to it"] = function()
+  local render = require("inkmath.render")
+  local cache = require("inkmath.render.cache")
+  orig.render = render.render
+  render.render = function(n, ctx, cb)
+    cb({ key = cache.key(n, ctx, "mathjax"), path = "/stub.png", cols = 2, rows = 1, ratio = 0.5 })
+  end
+  local had_syntax = vim.g.syntax_on ~= nil
+  vim.cmd("syntax on")
+  local ok, err = pcall(function()
+    local line = [[a $e^{i\pi} + 1 \le \alpha$ b \(x \in A\) c $x^2$ d]]
+    local buf = setup_buf({ "top", line }, "tex")
+    vim.bo[buf].syntax = "tex"
+    eq(vim.b[buf].current_syntax, "tex")
+    core.attach(buf, { sync = true })
+    vim.wait(2000, function() return #inline_marks(buf) == 3 end, 10)
+    eq(#inline_marks(buf), 3)
+    eq(screen_line(2), "a ## b ## c ## d")
+    -- detach gives the user's syntax conceal back (and their 'conceallevel', here 0)
+    core.detach(buf)
+    vim.wo.conceallevel = 2
+    eq(screen_line(2):find("≤", 1, true) ~= nil, true)
+  end)
+  if not had_syntax then vim.cmd("syntax off") end
+  assert(ok, err)
+end
+
 --- folds: screen checks via screenstring()/screenpos() after :redraw (headless
 --- Neovim keeps a screen grid). The stub image is 2 cols x 3 rows.
-local PH = "\u{10EEEE}" -- kitty unicode placeholder: an image cell on screen
 local FOLD_DOC = { "x", "\\begin{equation}", "  a", "\\end{equation}", "y", "z" }
 
 -- a normal-mode edit after a quiet spell refreshes at once (no debounce wait); a
