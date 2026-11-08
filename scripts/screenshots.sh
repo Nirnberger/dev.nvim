@@ -5,6 +5,14 @@
 #   kitty       Neovim + inkmath directly in kitty
 #   kitty-tmux  the same inside tmux (allow-passthrough on); skipped locally without tmux >= 3.3,
 #               a failure when INKMATH_REQUIRE_TMUX=1 (CI)
+# and the overlay backends in other real terminals (scripts/realterm.sh), only for the samples in
+# INKMATH_SHOT_OVERLAY_SAMPLES (default: display.md inline.md, the PR comment stays narrow):
+#   xterm-sixel      xterm -ti vt340, Sixel          foot-sixel       foot under sway headless, Sixel
+#   wezterm-overlay  WezTerm, kitty graphics overlay  wezterm-iterm2   WezTerm, term.backend = "iterm2"
+#   konsole-overlay  Konsole, kitty graphics overlay
+#   A missing terminal skips its variants; INKMATH_REQUIRE_<TERM>=1 (CI) makes that a failure.
+#   Ready file as for kitty, then every recorded paint must have drawn pixels
+#   (scripts/realterm-check.lua) and two screen reads in a row must be identical.
 # Linux only: kitty under Xvfb (xvfb-run), pixels read from Xvfb's framebuffer (-fbdir, XWD),
 # cropped to the kitty window with ImageMagick (`magick`). Fixed kitty config (no user config),
 # window size, font, colors; the cursor stays at line 1, column 1 and does not blink.
@@ -14,7 +22,7 @@
 # (scripts/screenshots-check.lua) and for two identical framebuffer reads in a row.
 # A failed shot is retried once (::warning:: in GitHub Actions), a second failure exits 1.
 # Env: INKMATH_SHOT_TIMEOUT (seconds per wait, default 60), INKMATH_SHOT_SAMPLES (space-separated
-# file names in dev/samples, default all).
+# file names in dev/samples, default all), INKMATH_SHOT_VARIANTS (space-separated, default all).
 set -euo pipefail
 
 out="${1:?usage: scripts/screenshots.sh <outdir>}"
@@ -45,6 +53,32 @@ elif [ "${INKMATH_REQUIRE_TMUX:-}" = 1 ]; then
 else
   echo "screenshots: no tmux >= 3.3, skipping variant kitty-tmux" >&2
 fi
+overlay_term() { # <variant>: terminal of an overlay variant (scripts/realterm.sh), empty for kitty ones
+  case "$1" in
+    xterm-sixel) echo xterm ;;
+    foot-sixel) echo foot ;;
+    wezterm-overlay | wezterm-iterm2) echo wezterm ;;
+    konsole-overlay) echo konsole ;;
+  esac
+}
+for v in xterm-sixel foot-sixel wezterm-overlay wezterm-iterm2 konsole-overlay; do
+  t="$(overlay_term "$v")"
+  if why="$(bash "$root/scripts/realterm.sh" need "$t")"; then
+    variants+=("$v")
+  else
+    req="INKMATH_REQUIRE_${t^^}"
+    [ "${!req:-}" != 1 ] || die "$req=1 but $t: $why"
+    echo "screenshots: $t: $why, skipping variant $v" >&2
+  fi
+done
+if [ -n "${INKMATH_SHOT_VARIANTS:-}" ]; then
+  keep=()
+  for v in "${variants[@]}"; do
+    case " $INKMATH_SHOT_VARIANTS " in *" $v "*) keep+=("$v") ;; esac
+  done
+  variants=("${keep[@]}")
+fi
+overlay_samples="${INKMATH_SHOT_OVERLAY_SAMPLES:-display.md inline.md}"
 
 # treesitter parsers (make deps) and worker modules
 (cd "$root" && make -s deps >/dev/null)
@@ -172,10 +206,85 @@ shoot() { # <sample file> <variant>
   printf '%s: %d/%d formulas placed, %s\n' "$(basename "$png")" "$placed" "$formulas" "$(du -h "$png" | cut -f1)"
 }
 
+shoot_overlay() { # <sample file> <variant>: the variant's terminal via scripts/realterm.sh
+  local file="$1" variant="$2"
+  local name d ready scr pid t force=auto
+  t="$(overlay_term "$variant")"
+  [ "$variant" != wezterm-iterm2 ] || force=iterm2
+  name="$(basename "${file%.*}")"
+  d="$work/$name--$variant"
+  rm -rf "$d"
+  mkdir -p "$d/cache"
+  ready="$d/ready.json"
+  scr="$d/screen.ppm"
+
+  (cd "$root" && exec env NVIM_APPNAME=inkmath-dev XDG_CACHE_HOME="$d/cache" INKMATH_ROOT="$root" \
+    INKMATH_SHOT_READY="$ready" INKMATH_SHOT_BACKEND="$force" \
+    setsid bash "$root/scripts/realterm.sh" run "$t" "$d" "$cols" "$rows" \
+    nvim --noplugin -u "$root/scripts/screenshots-init.lua" "dev/samples/$file") >"$d/term.log" 2>&1 &
+  pid=$!
+
+  shot() { bash "$root/scripts/realterm.sh" shot "$t" "$d" "$1" 2>/dev/null; }
+  drawn() {
+    shot "$scr" || return 1
+    nvim --clean -l "$root/scripts/realterm-check.lua" "$root" "$ready" "$scr" >"$d/check" 2>&1
+  }
+  stable() {
+    shot "$scr" || return 1
+    sleep 0.3
+    shot "$d/screen2.ppm" || return 1
+    cmp -s "$scr" "$d/screen2.ppm"
+  }
+  stop() {
+    kill -TERM -- "-$pid" 2>/dev/null || true
+    for _ in $(seq 30); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+    kill -KILL -- "-$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+  }
+  fail() {
+    echo "screenshots: $name ($variant): $1" >&2
+    echo "--- terminal log:" >&2
+    tail -n 30 "$d/term.log" >&2
+    stop
+    return 1
+  }
+
+  wait_for "inkmath ready signal ($ready)" test -s "$ready" || {
+    fail "inkmath did not finish rendering and painting"
+    return 1
+  }
+  local info placed formulas cw ch backend
+  info="$(cat "$ready")"
+  placed="$(jq -r .placed <<<"$info")"
+  formulas="$(jq -r .formulas <<<"$info")"
+  backend="$(jq -r '.backend + " " + .mode' <<<"$info")"
+  cw="$(jq -r '.cell.w // empty' <<<"$info")"
+  ch="$(jq -r '.cell.h // empty' <<<"$info")"
+  [ -n "$cw" ] && [ -n "$ch" ] || { fail "inkmath found no cell size: $info"; return 1; }
+  [ "$placed" -gt 0 ] || { fail "inkmath placed no image ($formulas formulas): $info"; return 1; }
+  timeout_s=$draw_timeout_s wait_for "$t draws the images" drawn || { fail "$(cat "$d/check")"; return 1; }
+  wait_for "screen settles" stable || { fail "screen kept changing"; return 1; }
+
+  local png="$out/$name--$variant.png"
+  magick "$scr" -crop "$((cols * cw))x$((rows * ch))+0+0" +repage -strip \
+    -define png:compression-level=9 "$png" || { fail "magick could not convert the screen"; return 1; }
+  stop
+  printf '%s: %d/%d formulas placed, backend %s, %s\n' "$(basename "$png")" "$placed" "$formulas" "$backend" \
+    "$(du -h "$png" | cut -f1)"
+}
+
 samples="${INKMATH_SHOT_SAMPLES:-$(cd "$root/dev/samples" && ls)}"
 for f in $samples; do
   [ -f "$root/dev/samples/$f" ] || die "no such sample: $f"
   for v in "${variants[@]}"; do
+    if [ -n "$(overlay_term "$v")" ]; then
+      case " $overlay_samples " in *" $f "*) ;; *) continue ;; esac
+      shoot_overlay "$f" "$v" || {
+        echo "${GITHUB_ACTIONS:+::warning::}screenshots: $f ($v) failed, retrying once" >&2
+        shoot_overlay "$f" "$v" || die "$f ($v) failed twice"
+      }
+      continue
+    fi
     # one retry: a lost image (placeholders drawn blank) has been seen once and never reproduced
     shoot "$f" "$v" || {
       echo "${GITHUB_ACTIONS:+::warning::}screenshots: $f ($v) failed, retrying once" >&2
