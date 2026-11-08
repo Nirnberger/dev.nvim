@@ -27,6 +27,10 @@ local function ensure_opt(name, url)
   if vim.v.shell_error ~= 0 then vim.notify("could not clone " .. name .. ": " .. out, vim.log.levels.WARN) end
 end
 ensure_opt("vimtex", "https://github.com/lervag/vimtex")
+-- tests/test_plugins_real.lua: other LaTeX-math / conceal plugins, probed by interop.lua
+ensure_opt("render-markdown.nvim", "https://github.com/MeanderingProgrammer/render-markdown.nvim")
+ensure_opt("markview.nvim", "https://github.com/OXY2DEV/markview.nvim")
+ensure_opt("snacks.nvim", "https://github.com/folke/snacks.nvim")
 vim.cmd("packloadall")
 for _, d in ipairs({ "/usr/local/bin", "/opt/homebrew/bin" }) do
   if not vim.env.PATH:find(d, 1, true) then vim.env.PATH = d .. ":" .. vim.env.PATH end
