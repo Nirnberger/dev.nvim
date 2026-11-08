@@ -68,7 +68,9 @@ T["aux in relative out_dir with jobname"] = function()
   touch(d .. "/main.aux") -- stale copy next to the root: out_dir has precedence
   local b = tex_buf(d .. "/main.tex")
   vim.b[b].vimtex = {
-    tex = d .. "/main.tex", root = d, name = "main",
+    tex = d .. "/main.tex",
+    root = d,
+    name = "main",
     compiler = { out_dir = "build", file_info = { jobname = "thesis", root = d } },
   }
   eq(V().aux_file(b), d .. "/build/thesis.aux")
@@ -127,9 +129,20 @@ local FAKE_SYNTAX = {
 }
 
 local USER_CONCEAL = {
-  accents = 1, ligatures = 1, cites = 1, fancy = 1, texTabularChar = 1, spacing = 1, greek = 1,
-  math_bounds = 1, math_delimiters = 1, math_fracs = 1, math_super_sub = 1, math_symbols = 1,
-  sections = 0, styles = 1,
+  accents = 1,
+  ligatures = 1,
+  cites = 1,
+  fancy = 1,
+  texTabularChar = 1,
+  spacing = 1,
+  greek = 1,
+  math_bounds = 1,
+  math_delimiters = 1,
+  math_fracs = 1,
+  math_super_sub = 1,
+  math_symbols = 1,
+  sections = 0,
+  styles = 1,
 }
 
 local function fake_buf()
@@ -147,12 +160,13 @@ local function fake_buf()
   vim.wo.conceallevel = 2
   vim.api.nvim_buf_set_lines(b, 0, -1, false, { "\\alpha \\mathbf \\'a" })
   vim.bo[b].syntax = "inkmathfake"
-  return b, function()
-    vim.api.nvim_buf_delete(b, { force = true })
-    vim.opt.runtimepath:remove(rtp)
-    vim.g.vimtex_syntax_conceal = nil
-    vim.g.inkmath_seen_conceal = nil
-  end
+  return b,
+    function()
+      vim.api.nvim_buf_delete(b, { force = true })
+      vim.opt.runtimepath:remove(rtp)
+      vim.g.vimtex_syntax_conceal = nil
+      vim.g.inkmath_seen_conceal = nil
+    end
 end
 
 T["math conceal: syntax reloaded with math keys off, global restored"] = function()
@@ -165,7 +179,16 @@ T["math conceal: syntax reloaded with math keys off, global restored"] = functio
     eq(vim.fn.synconcealed(1, 8)[1], 0) -- \mathbf (styles)
     eq(vim.fn.synconcealed(1, 16)[1], 1) -- accents: not math, kept
     local seen = vim.g.inkmath_seen_conceal
-    for _, k in ipairs({ "math_bounds", "math_delimiters", "math_fracs", "math_super_sub", "math_symbols", "greek", "styles", "spacing" }) do
+    for _, k in ipairs({
+      "math_bounds",
+      "math_delimiters",
+      "math_fracs",
+      "math_super_sub",
+      "math_symbols",
+      "greek",
+      "styles",
+      "spacing",
+    }) do
       eq({ k, seen[k] }, { k, 0 })
     end
     eq(seen.accents, 1)
@@ -191,9 +214,11 @@ T["M1: latexmk aux_dir has precedence over out_dir"] = function()
   touch(d .. "/aux/main.aux")
   touch(d .. "/build/main.aux")
   local b = tex_buf(d .. "/main.tex")
-  vim.b[b].vimtex = { tex = d .. "/main.tex", root = d, name = "main", compiler = { aux_dir = "aux", out_dir = "build" } }
+  vim.b[b].vimtex =
+    { tex = d .. "/main.tex", root = d, name = "main", compiler = { aux_dir = "aux", out_dir = "build" } }
   eq(V().aux_file(b), d .. "/aux/main.aux")
-  vim.b[b].vimtex = { tex = d .. "/main.tex", root = d, name = "main", compiler = { aux_dir = "aux2", out_dir = "out2" } }
+  vim.b[b].vimtex =
+    { tex = d .. "/main.tex", root = d, name = "main", compiler = { aux_dir = "aux2", out_dir = "out2" } }
   eq(V().aux_file(b), d .. "/aux2/main.aux") -- nothing built: highest-precedence path
 end
 

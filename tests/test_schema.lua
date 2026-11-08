@@ -35,9 +35,7 @@ T["all errors are reported"] = function()
   eq(#e, 3)
   expect.match(e[1], "^backend: expected 'mathjax' or 'tectonic', got \"x\"")
 end
-T["container must be a table"] = function()
-  expect.match(schema.validate({ inline = 3 })[1], "inline: expected table")
-end
+T["container must be a table"] = function() expect.match(schema.validate({ inline = 3 })[1], "inline: expected table") end
 T["global-only key rejected in overrides"] = function()
   local e = schema.validate({ overrides = { markdown = { workers = 4 } } })
   expect.match(e[1], "overrides.markdown.workers.*global")
@@ -62,8 +60,20 @@ T["merge replaces lists and merges containers"] = function()
 end
 
 T["preview.border: names and 1/2/4/8-entry lists"] = function()
-  for _, ok in ipairs({ "rounded", "single", "double", "bold", "solid", "shadow", "none", { "+" }, { "+", "-" },
-    { "+", "-", "+", "|" }, { "+", "-", "+", "|", "+", "-", "+", "|" }, { { "+", "Normal" }, "-" } }) do
+  for _, ok in ipairs({
+    "rounded",
+    "single",
+    "double",
+    "bold",
+    "solid",
+    "shadow",
+    "none",
+    { "+" },
+    { "+", "-" },
+    { "+", "-", "+", "|" },
+    { "+", "-", "+", "|", "+", "-", "+", "|" },
+    { { "+", "Normal" }, "-" },
+  }) do
     eq(#schema.validate({ preview = { border = ok } }), 0)
   end
   for _, bad in ipairs({ "rouned", { "+", "-", "+" }, {}, { 1 }, 3 }) do
@@ -71,7 +81,9 @@ T["preview.border: names and 1/2/4/8-entry lists"] = function()
   end
 end
 T["log.level choices come from log"] = function()
-  for _, l in ipairs(require("inkmath.log").LEVEL_NAMES) do eq(#schema.validate({ log = { level = l } }), 0) end
+  for _, l in ipairs(require("inkmath.log").LEVEL_NAMES) do
+    eq(#schema.validate({ log = { level = l } }), 0)
+  end
   eq(#schema.validate({ log = { level = "trace" } }), 1)
 end
 

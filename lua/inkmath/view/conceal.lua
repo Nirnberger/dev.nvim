@@ -48,10 +48,11 @@ function M.apply(buf)
   for _, w in ipairs(vim.fn.win_findbuf(buf)) do
     if not is_float(w) then -- floats keep their own options
       local o = { scope = "local", win = w }
-      saved[buf][w] = saved[buf][w] or {
-        cl = vim.api.nvim_get_option_value("conceallevel", o),
-        cc = vim.api.nvim_get_option_value("concealcursor", o),
-      }
+      saved[buf][w] = saved[buf][w]
+        or {
+          cl = vim.api.nvim_get_option_value("conceallevel", o),
+          cc = vim.api.nvim_get_option_value("concealcursor", o),
+        }
       -- a user's conceallevel 0 (toggle keymap) sticks when the buffer is shown again
       write(w, (user_cl0[buf] and user_cl0[buf][w]) and 0 or c.level, c.cursor)
     end
@@ -69,7 +70,9 @@ end
 
 ---@param win integer
 function M.forget_win(win)
-  for _, t in pairs(user_cl0) do t[win] = nil end
+  for _, t in pairs(user_cl0) do
+    t[win] = nil
+  end
 end
 
 ---@param buf integer
@@ -138,7 +141,9 @@ end
 ---@param buf integer
 function M.recheck(buf)
   if managed[buf] and (last[buf] == true) ~= M.hidden(buf) then
-    for _, fn in ipairs(listeners) do fn(buf) end
+    for _, fn in ipairs(listeners) do
+      fn(buf)
+    end
   end
 end
 
@@ -155,7 +160,9 @@ local function on_optionset()
     end
   end
   -- any managed buffer may be shown in the window whose value changed
-  for mb in pairs(managed) do M.recheck(mb) end
+  for mb in pairs(managed) do
+    M.recheck(mb)
+  end
 end
 
 local group = vim.api.nvim_create_augroup("inkmath_conceal", { clear = true })

@@ -149,7 +149,9 @@ I["delete_all deletes only resident ids"] = function()
   images.delete_all()
   eq(sent, { kitty.delete_seq(ib) })
   eq(ia_old:find("a=d,d=I", 1, true) ~= nil, true)
-  for _, s in ipairs(sent) do eq(s:find("d=a", 1, true), nil) end
+  for _, s in ipairs(sent) do
+    eq(s:find("d=a", 1, true), nil)
+  end
 end
 I["VimLeavePre deletes images"] = function()
   local core = require("inkmath.core")
@@ -159,12 +161,25 @@ I["VimLeavePre deletes images"] = function()
     { require("inkmath.term.cells"), "cell_size", function() return { w = 10, h = 20 } end },
     { require("inkmath.render"), "available", function() return { mathjax = false, tectonic = true } end },
     { require("inkmath.render"), "shutdown", function() end },
-    { require("inkmath.render"), "render", function(nd, ctx, cb)
-      cb({ key = require("inkmath.render.cache").key(nd, ctx, "mathjax"), path = "/stub.png", cols = 1, rows = 1, ratio = 0.5 })
-    end },
+    {
+      require("inkmath.render"),
+      "render",
+      function(nd, ctx, cb)
+        cb({
+          key = require("inkmath.render.cache").key(nd, ctx, "mathjax"),
+          path = "/stub.png",
+          cols = 1,
+          rows = 1,
+          ratio = 0.5,
+        })
+      end,
+    },
   }
   local saved = {}
-  for i, s in ipairs(stubs) do saved[i] = s[1][s[2]]; s[1][s[2]] = s[3] end
+  for i, s in ipairs(stubs) do
+    saved[i] = s[1][s[2]]
+    s[1][s[2]] = s[3]
+  end
   local b = require("tests.helpers").buf({ "$a$ $b$" }, "markdown")
   vim.api.nvim_win_set_buf(0, b)
   core.attach(b, { sync = true })
@@ -176,9 +191,13 @@ I["VimLeavePre deletes images"] = function()
   vim.api.nvim_exec_autocmds("VimLeavePre", {})
   core.detach(b)
   vim.api.nvim_buf_delete(b, { force = true })
-  for i, s in ipairs(stubs) do s[1][s[2]] = saved[i] end
+  for i, s in ipairs(stubs) do
+    s[1][s[2]] = saved[i]
+  end
   eq(#ids, 2)
-  for _, id in ipairs(ids) do eq(vim.tbl_contains(sent, kitty.delete_seq(tonumber(id))), true) end
+  for _, id in ipairs(ids) do
+    eq(vim.tbl_contains(sent, kitty.delete_seq(tonumber(id))), true)
+  end
 end
 
 return T

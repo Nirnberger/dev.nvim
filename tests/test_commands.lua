@@ -42,8 +42,6 @@ T["cmd"][":InkMath is defined by require('inkmath')"] = function()
   require("inkmath")
   eq(vim.fn.exists(":InkMath"), 2)
 end
-T["cmd"]["require('inkmath') exposes the api"] = function()
-  eq(require("inkmath").toggle, require("inkmath.api").toggle)
-end
+T["cmd"]["require('inkmath') exposes the api"] = function() eq(require("inkmath").toggle, require("inkmath.api").toggle) end
 
 return T

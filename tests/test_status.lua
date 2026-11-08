@@ -20,9 +20,13 @@ local stubs = {
   { require("inkmath.term.tmux"), "in_tmux", function() return false end },
   { require("inkmath.term.cells"), "cell_size", function() return { w = 10, h = 20 } end },
   { render, "available", function() return avail end },
-  { render, "render", function(n, ctx, cb)
-    cb({ key = cache.key(n, ctx, "mathjax"), path = "/stub.png", cols = 1, rows = 1, ratio = 0.5 })
-  end },
+  {
+    render,
+    "render",
+    function(n, ctx, cb)
+      cb({ key = cache.key(n, ctx, "mathjax"), path = "/stub.png", cols = 1, rows = 1, ratio = 0.5 })
+    end,
+  },
 }
 local saved, bufs, notes = {}, {}, {}
 
@@ -36,7 +40,10 @@ end
 T["status"] = MiniTest.new_set({
   hooks = {
     pre_case = function()
-      for i, s in ipairs(stubs) do saved[i] = s[1][s[2]]; s[1][s[2]] = s[3] end
+      for i, s in ipairs(stubs) do
+        saved[i] = s[1][s[2]]
+        s[1][s[2]] = s[3]
+      end
       saved.notify = vim.notify
       notes = {}
       vim.notify = function(m) notes[#notes + 1] = m end
@@ -51,7 +58,9 @@ T["status"] = MiniTest.new_set({
       end
       bufs = {}
       require("inkmath.term.images").evict(0, {})
-      for i, s in ipairs(stubs) do s[1][s[2]] = saved[i] end
+      for i, s in ipairs(stubs) do
+        s[1][s[2]] = saved[i]
+      end
       vim.notify = saved.notify
       c.reset()
       log.rearm()
@@ -153,8 +162,13 @@ S["env warnings fit one 80-column message line"] = function()
   local kitty, tmux = require("inkmath.term.kitty"), require("inkmath.term.tmux")
   local saved = { kitty.supported, tmux.in_tmux, tmux.passthrough_enabled, vim.o.termguicolors }
   local cases = {
-    function() kitty.supported = function() return false end end,
-    function() tmux.in_tmux = function() return true end; tmux.passthrough_enabled = function() return false end end,
+    function()
+      kitty.supported = function() return false end
+    end,
+    function()
+      tmux.in_tmux = function() return true end
+      tmux.passthrough_enabled = function() return false end
+    end,
     function() avail = { mathjax = false, tectonic = false } end,
     function() vim.o.termguicolors = false end,
   }

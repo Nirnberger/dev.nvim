@@ -20,9 +20,7 @@ function M.send(seq)
 end
 
 ---@return boolean
-function M.is_local()
-  return (vim.env.SSH_CONNECTION or "") == ""
-end
+function M.is_local() return (vim.env.SSH_CONNECTION or "") == "" end
 
 ---@param id integer
 ---@param path string
@@ -32,9 +30,7 @@ end
 ---@return string[]
 function M.transmit_seq(id, path, cols, rows, is_local)
   local dims = string.format("i=%d,c=%d,r=%d", id, cols, rows)
-  if is_local then
-    return { ESC .. "_Ga=T,U=1,f=100,t=f,q=2," .. dims .. ";" .. vim.base64.encode(path) .. ST }
-  end
+  if is_local then return { ESC .. "_Ga=T,U=1,f=100,t=f,q=2," .. dims .. ";" .. vim.base64.encode(path) .. ST } end
   local f = io.open(path, "rb")
   if not f then return {} end
   local bytes = f:read("*a")
@@ -57,9 +53,7 @@ end
 
 ---@param id integer
 ---@return string
-function M.delete_seq(id)
-  return string.format("%s_Ga=d,d=I,i=%d,q=2%s", ESC, id, ST)
-end
+function M.delete_seq(id) return string.format("%s_Ga=d,d=I,i=%d,q=2%s", ESC, id, ST) end
 
 ---@return boolean
 function M.supported()

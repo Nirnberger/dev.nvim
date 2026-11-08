@@ -9,8 +9,13 @@ local function strip_comments(text)
       local p = line:find("%", i, true)
       if not p then break end
       local bs = 0
-      while p - bs - 1 >= 1 and line:sub(p - bs - 1, p - bs - 1) == "\\" do bs = bs + 1 end
-      if bs % 2 == 0 then line = line:sub(1, p - 1) break end
+      while p - bs - 1 >= 1 and line:sub(p - bs - 1, p - bs - 1) == "\\" do
+        bs = bs + 1
+      end
+      if bs % 2 == 0 then
+        line = line:sub(1, p - 1)
+        break
+      end
       i = p + 1
     end
     out[#out + 1] = line
@@ -37,9 +42,7 @@ local function group(text, pos)
   return nil
 end
 
-local function skip_ws(text, pos)
-  return text:find("%S", pos) or #text + 1
-end
+local function skip_ws(text, pos) return text:find("%S", pos) or #text + 1 end
 
 --- Read a control sequence name at pos (either `\name` or `{\name}`). Returns name, next pos.
 local function csname(text, pos)
@@ -92,7 +95,9 @@ function M.from_tex_preamble(lines)
     elseif cmd == "DeclareMathOperator" then
       local p = pos
       local star = ""
-      if text:sub(p, p) == "*" then star, p = "*", p + 1 end
+      if text:sub(p, p) == "*" then
+        star, p = "*", p + 1
+      end
       local name, np = csname(text, p)
       if name then
         local body, after = group(text, skip_ws(text, np))

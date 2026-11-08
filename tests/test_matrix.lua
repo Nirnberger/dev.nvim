@@ -18,7 +18,9 @@ local function with_env(env, fn)
   kitty.forget()
   tmux.forget()
   local ok, res = pcall(fn)
-  for _, k in ipairs(VARS) do vim.env[k] = saved[k] end
+  for _, k in ipairs(VARS) do
+    vim.env[k] = saved[k]
+  end
   kitty.forget()
   tmux.forget()
   assert(ok, res)
@@ -61,7 +63,22 @@ local function stop_server(sock) sh({ "tmux", "-S", sock, "kill-server" }) end
 --- A detached tmux server on a private socket; returns env for it, or nil (tmux missing).
 local function start_server(sock, passthrough)
   if vim.fn.executable("tmux") ~= 1 then return nil end
-  local ok = sh({ "tmux", "-S", sock, "-f", "/dev/null", "new-session", "-d", "-s", "inkmath", "-x", "80", "-y", "24", "sleep 300" })
+  local ok = sh({
+    "tmux",
+    "-S",
+    sock,
+    "-f",
+    "/dev/null",
+    "new-session",
+    "-d",
+    "-s",
+    "inkmath",
+    "-x",
+    "80",
+    "-y",
+    "24",
+    "sleep 300",
+  })
   if not ok then return nil end
   -- "all" needs tmux >= 3.4: a refused value skips the case rather than testing the default
   if not sh({ "tmux", "-S", sock, "set", "-g", "allow-passthrough", passthrough }) then
@@ -72,7 +89,6 @@ local function start_server(sock, passthrough)
   local _, pid = sh({ "tmux", "-S", sock, "display", "-p", "#{pid}" })
   return { TERM = "tmux-256color", TMUX = ("%s,%s,0"):format(sock, pid), TMUX_PANE = pane }
 end
-
 
 for _, case in ipairs({ { "on", true }, { "all", true }, { "off", false } }) do
   local value, want = case[1], case[2]

@@ -16,9 +16,12 @@ function M.register(ft, spec)
   vim.validate("spec", spec, "table")
   vim.validate("spec.lang", spec.lang, "string")
   vim.validate("spec.detector", spec.detector, "string")
-  vim.validate("spec.ctx", spec.ctx, function(v)
-    return v == nil or v == "tex" or v == "markdown" or type(v) == "function"
-  end, "nil, 'tex', 'markdown' or function")
+  vim.validate(
+    "spec.ctx",
+    spec.ctx,
+    function(v) return v == nil or v == "tex" or v == "markdown" or type(v) == "function" end,
+    "nil, 'tex', 'markdown' or function"
+  )
   specs[ft] = spec
 end
 

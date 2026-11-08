@@ -76,21 +76,27 @@ T["apply"]["starred, unlabeled, unknown label, display and inline stay"] = funct
 end
 
 T["apply"]["align: per row, \\notag rows skipped"] = function()
-  local n = block("align", table.concat({
-    "\\begin{align}",
-    "  a &= b \\label{eq:a} \\\\",
-    "  c &= d \\notag \\label{eq:b} \\\\",
-    "  e &= f \\label{eq:c}",
-    "\\end{align}",
-  }, "\n"))
+  local n = block(
+    "align",
+    table.concat({
+      "\\begin{align}",
+      "  a &= b \\label{eq:a} \\\\",
+      "  c &= d \\notag \\label{eq:b} \\\\",
+      "  e &= f \\label{eq:c}",
+      "\\end{align}",
+    }, "\n")
+  )
   L().apply({ n }, labels)
-  eq(n.src, table.concat({
-    "\\begin{align}\\tag{3.2}",
-    "  a &= b \\label{eq:a} \\\\",
-    "  c &= d \\notag \\label{eq:b} \\\\\\tag{3.4}",
-    "  e &= f \\label{eq:c}",
-    "\\end{align}",
-  }, "\n"))
+  eq(
+    n.src,
+    table.concat({
+      "\\begin{align}\\tag{3.2}",
+      "  a &= b \\label{eq:a} \\\\",
+      "  c &= d \\notag \\label{eq:b} \\\\\\tag{3.4}",
+      "  e &= f \\label{eq:c}",
+      "\\end{align}",
+    }, "\n")
+  )
 end
 
 T["apply"]["the number is part of the cache key"] = function()
@@ -109,32 +115,38 @@ end
 --- rendered by the real MathJax worker, which rejects \tag inside split & co.
 local NESTED = {
   {
-    "equation+split", "equation",
+    "equation+split",
+    "equation",
     "\\begin{equation}\\begin{split}a&=b\\\\&=c\\label{eq:a}\\end{split}\\end{equation}",
     "\\begin{equation}\\tag{3.2}\\begin{split}a&=b\\\\&=c\\label{eq:a}\\end{split}\\end{equation}",
   },
   {
-    "equation+aligned", "equation",
+    "equation+aligned",
+    "equation",
     "\\begin{equation}\n\\begin{aligned} a&=b \\\\ c&=d \\end{aligned} \\label{eq:a}\n\\end{equation}",
     "\\begin{equation}\\tag{3.2}\n\\begin{aligned} a&=b \\\\ c&=d \\end{aligned} \\label{eq:a}\n\\end{equation}",
   },
   {
-    "equation+cases", "equation",
+    "equation+cases",
+    "equation",
     "\\begin{equation} f = \\begin{cases} 1 & x \\\\ 0 & y \\label{eq:a} \\end{cases} \\end{equation}",
     "\\begin{equation}\\tag{3.2} f = \\begin{cases} 1 & x \\\\ 0 & y \\label{eq:a} \\end{cases} \\end{equation}",
   },
   {
-    "align with a pmatrix row", "align",
+    "align with a pmatrix row",
+    "align",
     "\\begin{align} A &= \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} \\label{eq:a} \\\\ b &= c \\label{eq:b} \\end{align}",
     "\\begin{align}\\tag{3.2} A &= \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} \\label{eq:a} \\\\\\tag{3.3} b &= c \\label{eq:b} \\end{align}",
   },
   {
-    "align with two labeled rows", "align",
+    "align with two labeled rows",
+    "align",
     "\\begin{align} a &= b \\label{eq:a} \\\\ c &= d \\label{eq:b} \\end{align}",
     "\\begin{align}\\tag{3.2} a &= b \\label{eq:a} \\\\\\tag{3.3} c &= d \\label{eq:b} \\end{align}",
   },
   {
-    "alignat argument kept", "alignat",
+    "alignat argument kept",
+    "alignat",
     "\\begin{alignat}{2} a &= b \\label{eq:a} \\end{alignat}",
     "\\begin{alignat}{2}\\tag{3.2} a &= b \\label{eq:a} \\end{alignat}",
   },
@@ -149,7 +161,9 @@ for _, c in ipairs(NESTED) do
     local render = require("inkmath.render")
     local ctx = { color = "#ffffff", cell_w = 10, cell_h = 20, container_px = 800, macros = {} }
     local done, img, err
-    render.render(n, ctx, function(i, e) done, img, err = true, i, e end, { no_fallback = true })
+    render.render(n, ctx, function(i, e)
+      done, img, err = true, i, e
+    end, { no_fallback = true })
     vim.wait(30000, function() return done end, 20)
     eq(err, nil)
     eq(img ~= nil, true)
@@ -185,12 +199,20 @@ end
 -- equation continues the count), not each formula from (1)
 T["numbering counts rows in document order"] = function()
   local starts = L().numbering({
-    "\\begin{equation}", "a", "\\end{equation}",          -- row 0: (1)
-    "\\begin{equation*}", "b", "\\end{equation*}",        -- unnumbered
-    "\\begin{align}", "x &= 1 \\\\", "y &= 2 \\notag \\\\", "z &= 3", "\\end{align}", -- row 6: (2), (3)
+    "\\begin{equation}",
+    "a",
+    "\\end{equation}", -- row 0: (1)
+    "\\begin{equation*}",
+    "b",
+    "\\end{equation*}", -- unnumbered
+    "\\begin{align}",
+    "x &= 1 \\\\",
+    "y &= 2 \\notag \\\\",
+    "z &= 3",
+    "\\end{align}", -- row 6: (2), (3)
     "% \\begin{equation} commented \\end{equation}",
-    "\\begin{gather} p \\tag{A} \\\\ q \\end{gather}",    -- row 12: (4) for q
-    "\\begin{multline} m \\\\ n \\end{multline}",         -- row 13: (5)
+    "\\begin{gather} p \\tag{A} \\\\ q \\end{gather}", -- row 12: (4) for q
+    "\\begin{multline} m \\\\ n \\end{multline}", -- row 13: (5)
     "\\begin{equation}\\begin{split} s \\\\ t \\end{split}\\end{equation}", -- row 14: (6)
   })
   eq(starts, { [0] = 1, [6] = 2, [12] = 4, [13] = 5, [14] = 6 })
@@ -198,8 +220,13 @@ end
 
 T["number injects document-order tags into unlabeled rows"] = function()
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false,
-    { "\\begin{equation}", "a", "\\end{equation}", "\\begin{align}", "x \\\\ y \\nonumber \\\\ z", "\\end{align}" })
+  vim.api.nvim_buf_set_lines(
+    buf,
+    0,
+    -1,
+    false,
+    { "\\begin{equation}", "a", "\\end{equation}", "\\begin{align}", "x \\\\ y \\nonumber \\\\ z", "\\end{align}" }
+  )
   local function blk(srow, src, env) return { kind = "block", env = env, src = src, range = { srow = srow } } end
   local nodes = {
     blk(0, "\\begin{equation}\na\n\\end{equation}", "equation"),

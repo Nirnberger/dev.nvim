@@ -13,9 +13,7 @@ local registry = require("inkmath.detect.registry")
 ---@param env string|nil
 ---@param src string
 ---@return string
-function M.node_id(kind, env, src)
-  return vim.fn.sha256(kind .. "\31" .. (env or "") .. "\31" .. src):sub(1, 16)
-end
+function M.node_id(kind, env, src) return vim.fn.sha256(kind .. "\31" .. (env or "") .. "\31" .. src):sub(1, 16) end
 
 --- Make ids unique per occurrence (in place): content id .. "#" .. n, n counting the
 --- nodes with the same content id in source order. These are the ids of placements.
@@ -53,7 +51,9 @@ function M.detect(bufnr, srow, erow)
   if not modname then return {}, { has_error = false } end
   local ok, mod = pcall(require, modname)
   if not ok then
-    if type(mod) == "string" and mod:find("module '" .. modname .. "' not found", 1, true) then return {}, { has_error = false } end
+    if type(mod) == "string" and mod:find("module '" .. modname .. "' not found", 1, true) then
+      return {}, { has_error = false }
+    end
     error(mod)
   end
   local nodes, has_error = mod.detect(bufnr, srow, erow)

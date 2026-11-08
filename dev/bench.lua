@@ -29,7 +29,9 @@ vim.o.lines, vim.o.columns = 52, 120
 config.setup({})
 
 local ONLY = {}
-for w in (vim.env.BENCH_ONLY or ""):gmatch("[^,]+") do ONLY[w] = true end
+for w in (vim.env.BENCH_ONLY or ""):gmatch("[^,]+") do
+  ONLY[w] = true
+end
 local function want(n) return next(ONLY) == nil or ONLY[n] end
 
 local function now() return vim.uv.hrtime() / 1e6 end
@@ -60,7 +62,9 @@ do
     return r
   end
 end
-local function reset_cb() cb_ms, cb_n, cb_max, put_ms = 0, 0, 0, 0 end
+local function reset_cb()
+  cb_ms, cb_n, cb_max, put_ms = 0, 0, 0, 0
+end
 
 -- BENCH_PROFILE=1: time the main pieces of refresh (module functions core calls)
 local prof = {}
@@ -95,14 +99,18 @@ local function prof_report(label, n)
   if not vim.env.BENCH_PROFILE then return end
   local keys = vim.tbl_keys(prof)
   table.sort(keys)
-  for _, k in ipairs(keys) do io.stderr:write(("    %-40s %.2f ms/refresh\n"):format(label .. " " .. k, prof[k] / n)) end
+  for _, k in ipairs(keys) do
+    io.stderr:write(("    %-40s %.2f ms/refresh\n"):format(label .. " " .. k, prof[k] / n))
+  end
   prof = {}
 end
 
 local function stats(xs)
   table.sort(xs)
   local sum = 0
-  for _, x in ipairs(xs) do sum = sum + x end
+  for _, x in ipairs(xs) do
+    sum = sum + x
+  end
   local function q(p) return xs[math.max(1, math.ceil(#xs * p))] end
   return { median = q(0.5), p95 = q(0.95), max = xs[#xs], mean = sum / #xs, n = #xs }
 end
@@ -110,21 +118,34 @@ end
 -- ~1 formula per 2 lines: inline on most text lines, plus \[..\], $$..$$, equation
 -- and align blocks. Every formula is distinct (no cache sharing between them).
 local function gen_tex(n)
-  local lines = { "\\documentclass{article}", "\\usepackage{amsmath}",
-    "\\newcommand{\\R}{\\mathbb{R}}", "\\begin{document}" }
+  local lines =
+    { "\\documentclass{article}", "\\usepackage{amsmath}", "\\newcommand{\\R}{\\mathbb{R}}", "\\begin{document}" }
   local i = 0
   while #lines < n - 1 do
     i = i + 1
     local k = i % 12
     if k == 0 then
-      vim.list_extend(lines, { "\\begin{align}", ("  f_{%d}(x) &= \\sum_{k=0}^{%d} a_k x^k \\\\"):format(i, i),
-        ("  g_{%d}(x) &= \\int_0^x f_{%d}(t)\\,dt"):format(i, i), "\\end{align}", "" })
+      vim.list_extend(lines, {
+        "\\begin{align}",
+        ("  f_{%d}(x) &= \\sum_{k=0}^{%d} a_k x^k \\\\"):format(i, i),
+        ("  g_{%d}(x) &= \\int_0^x f_{%d}(t)\\,dt"):format(i, i),
+        "\\end{align}",
+        "",
+      })
     elseif k == 6 then
-      lines[#lines + 1] = ("\\[ \\frac{\\partial^{%d} u}{\\partial x^{%d}} = \\lambda_{%d} \\nabla^2 u \\]"):format(i, i, i)
+      lines[#lines + 1] = ("\\[ \\frac{\\partial^{%d} u}{\\partial x^{%d}} = \\lambda_{%d} \\nabla^2 u \\]"):format(
+        i,
+        i,
+        i
+      )
       lines[#lines + 1] = ""
     elseif k == 9 then
-      vim.list_extend(lines, { "\\begin{equation}", ("  e^{i\\pi %d} + \\sqrt{%d} = \\R^{%d}"):format(i, i, i),
-        "\\end{equation}", "Plain prose follows the block here." })
+      vim.list_extend(lines, {
+        "\\begin{equation}",
+        ("  e^{i\\pi %d} + \\sqrt{%d} = \\R^{%d}"):format(i, i, i),
+        "\\end{equation}",
+        "Plain prose follows the block here.",
+      })
     else
       lines[#lines + 1] = ("Text %d with $x_{%d}^2 + \\alpha_{%d}$ and words around it."):format(i, i, i)
       lines[#lines + 1] = "Another line of prose without any math at all in it."
@@ -179,8 +200,11 @@ local function ids_in(buf, lo, hi)
   for _, n in ipairs(nodes) do
     count[n.id] = (count[n.id] or 0) + 1
     local id = n.id .. "#" .. count[n.id]
-    if n.range.srow <= hi and n.range.erow >= lo
-      and not (md and n.kind ~= "inline" and require("inkmath.ctx").macro_only(n.src)) then
+    if
+      n.range.srow <= hi
+      and n.range.erow >= lo
+      and not (md and n.kind ~= "inline" and require("inkmath.ctx").macro_only(n.src))
+    then
       out[#out + 1] = id
     end
   end
@@ -210,7 +234,9 @@ local function wait_placed(buf, ids, t0)
   return ok and (now() - t0) or -1
 end
 
-local function wait_idle() vim.wait(60000, function() return outstanding == 0 end, 5) end
+local function wait_idle()
+  vim.wait(60000, function() return outstanding == 0 end, 5)
+end
 
 local function redraw() vim.cmd("redraw") end
 
@@ -236,9 +262,19 @@ end
 local function bench_worker()
   mathjax.shutdown()
   local t0, t_ans = now(), nil
-  mathjax.request({ tex = "x", display = false, macros = {}, color = "#ffffff", cell_w = 10, cell_h = 20,
-    container_px = 800, x_height = 0.45, baseline = 0.78, scale = 1,
-    out = vim.fn.tempname() .. ".png" }, function() t_ans = now() end)
+  mathjax.request({
+    tex = "x",
+    display = false,
+    macros = {},
+    color = "#ffffff",
+    cell_w = 10,
+    cell_h = 20,
+    container_px = 800,
+    x_height = 0.45,
+    baseline = 0.78,
+    scale = 1,
+    out = vim.fn.tempname() .. ".png",
+  }, function() t_ans = now() end)
   vim.wait(60000, function() return t_ans ~= nil end, 1)
   record("worker: spawn -> first answer (ms)", t_ans - t0)
   -- steady-state throughput: 40 distinct formulas back to back, per pool size; and
@@ -248,9 +284,19 @@ local function bench_worker()
     local t1 = now()
     for i = 1, n do
       local tex = trivial and ("x_%d"):format(i) or ("\\frac{a_{%d}}{b^{%d}} + \\sqrt{x_%d}"):format(i, i, i)
-      mathjax.request({ tex = tag .. tex, display = not trivial, macros = {}, color = "#ffffff", cell_w = 10,
-        cell_h = 20, container_px = 800, x_height = 0.45, baseline = 0.78, scale = 1,
-        out = vim.fn.tempname() .. ".png" }, function() done = done + 1 end)
+      mathjax.request({
+        tex = tag .. tex,
+        display = not trivial,
+        macros = {},
+        color = "#ffffff",
+        cell_w = 10,
+        cell_h = 20,
+        container_px = 800,
+        x_height = 0.45,
+        baseline = 0.78,
+        scale = 1,
+        out = vim.fn.tempname() .. ".png",
+      }, function() done = done + 1 end)
     end
     vim.wait(60000, function() return done == n end, 1)
     return now() - t1
@@ -340,8 +386,10 @@ local function bench_open(name, lines, ft)
   local filled = vim.wait(120000, function() return fill.state(buf) == "done" end, 20)
   record(name .. ": background fill complete (ms) [" .. total .. " formulas]", filled and (now() - t0) or -1)
   wait_idle()
-  record(name .. ": after fill: placed / resident images (max_images " .. config.get().max_images .. ")",
-    { vim.tbl_count(state.get(buf).nodes), images.resident_count() })
+  record(
+    name .. ": after fill: placed / resident images (max_images " .. config.get().max_images .. ")",
+    { vim.tbl_count(state.get(buf).nodes), images.resident_count() }
+  )
   -- jumps far into the filled document: placed from the disk cache, no render
   local tj = {}
   for i = 1, 5 do
@@ -422,8 +470,14 @@ local function bench_open(name, lines, ft)
   record(name .. ": keystroke refresh, formula edit median/p95 (ms)", { sm.median, sm.p95 })
   local target = TARGETS[name]
   if target then
-    record(("%s: keystroke prose / formula%s, sync main-thread (target < %d ms)"):format(name,
-      hl and ", TS highlighter on" or "", target), { sp.median, sm.median })
+    record(
+      ("%s: keystroke prose / formula%s, sync main-thread (target < %d ms)"):format(
+        name,
+        hl and ", TS highlighter on" or "",
+        target
+      ),
+      { sp.median, sm.median }
+    )
   end
   record(name .. ": keystroke -> formula placed median/p95 (ms)", { sl.median, sl.p95 })
   record(name .. ": prose keystroke precheck skip ratio", skip_ratio)
@@ -554,7 +608,10 @@ local function bench_warmup(lines)
     local row
     for r = 1, 40 do
       local l = vim.api.nvim_buf_get_lines(buf, r - 1, r, false)[1]
-      if l:match("^Text") then row = r break end
+      if l:match("^Text") then
+        row = r
+        break
+      end
     end
     local l = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1]
     local c = l:find("%$")
@@ -568,7 +625,10 @@ local function bench_warmup(lines)
     vim.api.nvim_buf_delete(buf, { force = true })
   end
   local f = stats(tf)
-  record("warm open, workers not running: first edited formula placed (InsertEnter warm-up) median/max (ms)", { f.median, f.max })
+  record(
+    "warm open, workers not running: first edited formula placed (InsertEnter warm-up) median/max (ms)",
+    { f.median, f.max }
+  )
 end
 
 local ok, err = xpcall(function()

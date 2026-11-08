@@ -15,21 +15,59 @@ local function norm(nodes)
 end
 
 local TEX = {
-  "\\documentclass{article}", "\\begin{document}",
-  "Text $a+b$ and $c$ here.", "", "\\[ x^2 \\]", "Some prose.",
-  "\\begin{align}", "  a &= b \\\\", "  c &= d", "\\end{align}",
-  "% a comment $hidden$", "More $\\frac{1}{2}$ text \\verb|$no$| end.",
-  "\\begin{equation}", "  e = mc^2", "\\end{equation}", "Last $z$.", "\\end{document}",
+  "\\documentclass{article}",
+  "\\begin{document}",
+  "Text $a+b$ and $c$ here.",
+  "",
+  "\\[ x^2 \\]",
+  "Some prose.",
+  "\\begin{align}",
+  "  a &= b \\\\",
+  "  c &= d",
+  "\\end{align}",
+  "% a comment $hidden$",
+  "More $\\frac{1}{2}$ text \\verb|$no$| end.",
+  "\\begin{equation}",
+  "  e = mc^2",
+  "\\end{equation}",
+  "Last $z$.",
+  "\\end{document}",
 }
 local MD = {
-  "# Title", "", "Para $a$ and $b+c$.", "Second line $d$.", "", "$$", "x^2", "$$", "",
-  "```", "$code$", "```", "", "Inline `$span$` and $e$.", "", "$$f = g$$", "", "End $h$.",
+  "# Title",
+  "",
+  "Para $a$ and $b+c$.",
+  "Second line $d$.",
+  "",
+  "$$",
+  "x^2",
+  "$$",
+  "",
+  "```",
+  "$code$",
+  "```",
+  "",
+  "Inline `$span$` and $e$.",
+  "",
+  "$$f = g$$",
+  "",
+  "End $h$.",
 }
 
 -- balanced snippets keep the tree error-free (incremental path); risky ones may break it
 local TEX_SNIPS = {
-  safe = { " $q$ ", "word ", "\n", "\nMore $r_1$ text.\n", "\\[ y \\]", "\\alpha", "x", "  ",
-    "\n\\begin{equation}\n  w\n\\end{equation}\n", "% " },
+  safe = {
+    " $q$ ",
+    "word ",
+    "\n",
+    "\nMore $r_1$ text.\n",
+    "\\[ y \\]",
+    "\\alpha",
+    "x",
+    "  ",
+    "\n\\begin{equation}\n  w\n\\end{equation}\n",
+    "% ",
+  },
   risky = { "$", "{", "}", "\\[" },
 }
 local MD_SNIPS = {
@@ -67,13 +105,17 @@ local function run(lines, ft, snips, seed, steps, hl)
   local before = vim.deepcopy(incr.stats)
   local function dump()
     local out = {}
-    for i, l in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do out[i] = (i - 1) .. ": " .. l end
+    for i, l in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
+      out[i] = (i - 1) .. ": " .. l
+    end
     return table.concat(out, "\n")
   end
   for step = 1, steps do
     local prev = dump()
     -- sometimes several edits between two detections (debounced refresh)
-    for _ = 1, math.random(1, 3) do random_edit(buf, snips) end
+    for _ = 1, math.random(1, 3) do
+      random_edit(buf, snips)
+    end
     -- hl: the treesitter highlighter parses (with injections) before the refresh
     if hl then vim.treesitter.get_parser(buf, "markdown"):parse(true) end
     local got = norm(incr.detect(buf))
@@ -82,10 +124,16 @@ local function run(lines, ft, snips, seed, steps, hl)
     -- a broken tree makes every detection full: start over now and then
     if info.has_error and math.random(1, 2) == 1 then vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines) end
     if not vim.deep_equal(got, want) then
-      error(("seed %d step %d: incremental != full\nbefore the edits:\n%s\nbuffer:\n%s\nonly in incremental:\n%s\nonly in full:\n%s"):format(seed, step,
-        prev, dump(),
-        table.concat(vim.tbl_filter(function(x) return not vim.tbl_contains(want, x) end, got), "\n"),
-        table.concat(vim.tbl_filter(function(x) return not vim.tbl_contains(got, x) end, want), "\n")))
+      error(
+        ("seed %d step %d: incremental != full\nbefore the edits:\n%s\nbuffer:\n%s\nonly in incremental:\n%s\nonly in full:\n%s"):format(
+          seed,
+          step,
+          prev,
+          dump(),
+          table.concat(vim.tbl_filter(function(x) return not vim.tbl_contains(want, x) end, got), "\n"),
+          table.concat(vim.tbl_filter(function(x) return not vim.tbl_contains(got, x) end, want), "\n")
+        )
+      )
     end
   end
   incr.forget(buf)
@@ -95,19 +143,30 @@ end
 
 T["tex: random edits match a full detect"] = function()
   local n = 0
-  for seed = 1, 10 do n = n + run(TEX, "tex", TEX_SNIPS, seed, 80) end
+  for seed = 1, 10 do
+    n = n + run(TEX, "tex", TEX_SNIPS, seed, 80)
+  end
   MiniTest.expect.equality(n > 80, true) -- the incremental path was exercised
 end
 
 T["markdown: random edits match a full detect"] = function()
   local n = 0
-  for seed = 1, 10 do n = n + run(MD, "markdown", MD_SNIPS, seed, 80) end
+  for seed = 1, 10 do
+    n = n + run(MD, "markdown", MD_SNIPS, seed, 80)
+  end
   MiniTest.expect.equality(n > 80, true)
 end
 
 local MD_HL = vim.list_extend(vim.deepcopy(MD), {
-  "> quote $q$ and", "> more `x $y` z$", "", "- item $i$", "  cont $j$", "",
-  "| a | $t$ |", "|---|---|", "| `$u` | $v$ |",
+  "> quote $q$ and",
+  "> more `x $y` z$",
+  "",
+  "- item $i$",
+  "  cont $j$",
+  "",
+  "| a | $t$ |",
+  "|---|---|",
+  "| `$u` | $v$ |",
 })
 local MD_HL_SNIPS = {
   safe = { " $q$ ", "word ", "\n", "\n\nNew $r$ para.\n", "x", "  ", "\n\n$$\ns\n$$\n\n" },
@@ -116,7 +175,9 @@ local MD_HL_SNIPS = {
 
 T["markdown: random edits with a highlighter parse in between match a full detect"] = function()
   local n = 0
-  for seed = 1, 10 do n = n + run(MD_HL, "markdown", MD_HL_SNIPS, seed, 80, true) end
+  for seed = 1, 10 do
+    n = n + run(MD_HL, "markdown", MD_HL_SNIPS, seed, 80, true)
+  end
   MiniTest.expect.equality(n > 80, true)
 end
 
@@ -133,7 +194,9 @@ end
 
 T["edit far from math re-detects only nearby rows"] = function()
   local lines = {}
-  for i = 1, 400 do lines[i] = ("Line %d $x_{%d}$ text."):format(i, i) end
+  for i = 1, 400 do
+    lines[i] = ("Line %d $x_{%d}$ text."):format(i, i)
+  end
   local buf = h.buf(lines, "tex")
   incr.detect(buf)
   local f0, i0 = incr.stats.full, incr.stats.incr
@@ -156,7 +219,9 @@ end
 
 local function numbered(n)
   local lines = { "\\documentclass{article}", "\\begin{document}" }
-  for i = 1, n do lines[#lines + 1] = ("L%d $x_%d$ t."):format(i, i) end
+  for i = 1, n do
+    lines[#lines + 1] = ("L%d $x_%d$ t."):format(i, i)
+  end
   lines[#lines + 1] = "\\end{document}"
   return lines
 end
@@ -258,8 +323,13 @@ for _, case in ipairs({
   { "verbatim", { "\\begin{verbatim}", "hello", "x $a$ y", "\\end{verbatim}", "z" } },
 }) do
   T["deleting a \\begin{" .. case[1] .. "} line is not skipped"] = sync(function()
-    local b = h.buf(vim.list_extend({ "\\documentclass{article}", "\\begin{document}" },
-      vim.list_extend(vim.deepcopy(case[2]), { "\\end{document}" })), "tex")
+    local b = h.buf(
+      vim.list_extend(
+        { "\\documentclass{article}", "\\begin{document}" },
+        vim.list_extend(vim.deepcopy(case[2]), { "\\end{document}" })
+      ),
+      "tex"
+    )
     incr.detect(b)
     local s0 = incr.stats.skip
     vim.api.nvim_buf_set_lines(b, 2, 3, false, {}) -- dd on the \begin line
@@ -301,11 +371,15 @@ T["bounded large edit marks stale"] = sync(function()
   local b = h.buf(prose_tex(100), "tex")
   incr.detect(b)
   local paste = {}
-  for i = 1, 2000 do paste[i] = ("Pasted %d $p_{%d}$."):format(i, i) end
+  for i = 1, 2000 do
+    paste[i] = ("Pasted %d $p_{%d}$."):format(i, i)
+  end
   vim.api.nvim_buf_set_lines(b, 100, 100, false, paste)
   local nodes, _, stale = incr.detect(b, { { 0, 50 } })
   eq(#stale > 0, true)
-  for _, r in ipairs(stale) do eq(r[1] > 50, true) end
+  for _, r in ipairs(stale) do
+    eq(r[1] > 50, true)
+  end
   eq(norm(in_rows(nodes, { { 0, 50 } })), norm(in_rows(detect.detect(b), { { 0, 50 } })))
   for _, n in ipairs(nodes) do
     if n.range.srow <= 50 then eq(n.stale, nil) end
@@ -319,7 +393,9 @@ T["bounded large edit marks stale"] = sync(function()
 end)
 T["markdown: a new $$ line marks later blocks stale outside the view"] = sync(function()
   local lines = { "# t", "" }
-  for i = 1, 300 do vim.list_extend(lines, { "$$", "a_" .. i, "$$", "", "Para $b_" .. i .. "$.", "" }) end
+  for i = 1, 300 do
+    vim.list_extend(lines, { "$$", "a_" .. i, "$$", "", "Para $b_" .. i .. "$.", "" })
+  end
   local b = h.buf(lines, "markdown")
   vim.treesitter.stop(b)
   incr.detect(b)
@@ -338,7 +414,9 @@ local function run_want(lines, ft, snips, seed, steps)
   pcall(vim.treesitter.stop, buf)
   incr.detect(buf)
   for step = 1, steps do
-    for _ = 1, math.random(1, 3) do random_edit(buf, snips) end
+    for _ = 1, math.random(1, 3) do
+      random_edit(buf, snips)
+    end
     local n = vim.api.nvim_buf_line_count(buf)
     local lo = math.random(0, n - 1)
     local want = { { lo, math.min(n - 1, lo + math.random(0, 8)) } }
@@ -351,8 +429,15 @@ local function run_want(lines, ft, snips, seed, steps)
     local exp = norm(in_rows(full, want))
     if info.has_error and math.random(1, 2) == 1 then vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines) end
     if not vim.deep_equal(got, exp) then
-      error(("seed %d step %d want %s: bounded != full\n%s\nvs\n%s"):format(seed, step, vim.inspect(want),
-        table.concat(got, "\n"), table.concat(exp, "\n")))
+      error(
+        ("seed %d step %d want %s: bounded != full\n%s\nvs\n%s"):format(
+          seed,
+          step,
+          vim.inspect(want),
+          table.concat(got, "\n"),
+          table.concat(exp, "\n")
+        )
+      )
     end
   end
   incr.forget(buf)
@@ -362,8 +447,12 @@ end
 T["equivalence property"] = function()
   vim.g._ts_force_sync_parsing = true -- async parses finish at once (no pending)
   local ok, err = pcall(function()
-    for seed = 1, 100 do run_want(TEX, "tex", TEX_SNIPS, seed, 20) end
-    for seed = 101, 200 do run_want(MD_HL, "markdown", MD_HL_SNIPS, seed, 20) end
+    for seed = 1, 100 do
+      run_want(TEX, "tex", TEX_SNIPS, seed, 20)
+    end
+    for seed = 101, 200 do
+      run_want(MD_HL, "markdown", MD_HL_SNIPS, seed, 20)
+    end
   end)
   vim.g._ts_force_sync_parsing = nil
   if not ok then error(err, 0) end
@@ -376,22 +465,31 @@ T["no parse when highlighter will"] = function()
   local want = { { 0, 17 } }
   incr.detect(b, want)
   local ready = 0
-  incr.on_ready(function(x) if x == b then ready = ready + 1 end end)
+  incr.on_ready(function(x)
+    if x == b then ready = ready + 1 end
+  end)
   local p = vim.treesitter.get_parser(b)
   local orig, calls = p.parse, 0
-  p.parse = function(...) calls = calls + 1; return orig(...) end
+  p.parse = function(...)
+    calls = calls + 1
+    return orig(...)
+  end
   vim.api.nvim_buf_set_text(b, 3, 0, 3, 0, { "$y$ " })
   local nodes, _, stale = incr.detect(b, want)
   p.parse = orig
   eq(calls, 0)
   eq(#stale > 0, true) -- the edited rows wait for the highlighter's parse
-  for _, n in ipairs(nodes) do eq(n.src ~= "y", true) end
+  for _, n in ipairs(nodes) do
+    eq(n.src ~= "y", true)
+  end
   vim.cmd("redraw")
   vim.wait(1000, function() return ready > 0 end)
   incr.on_ready(function() end)
   eq(ready, 1)
   local found = false
-  for _, n in ipairs(incr.detect(b, want)) do found = found or n.src == "y" end
+  for _, n in ipairs(incr.detect(b, want)) do
+    found = found or n.src == "y"
+  end
   eq(found, true)
   incr.forget(b)
   vim.api.nvim_buf_delete(b, { force = true })
@@ -402,7 +500,9 @@ T["tex: async parse, then ready"] = function()
   local want = { { 2990, 3010 } }
   incr.detect(b, want)
   local ready = 0
-  incr.on_ready(function(x) if x == b then ready = ready + 1 end end)
+  incr.on_ready(function(x)
+    if x == b then ready = ready + 1 end
+  end)
   local l = vim.api.nvim_buf_get_lines(b, 3000, 3001, false)[1]
   local c = l:find("%$")
   vim.api.nvim_buf_set_text(b, 3000, c, 3000, c, { "y" })

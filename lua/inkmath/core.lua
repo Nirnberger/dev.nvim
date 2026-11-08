@@ -54,18 +54,15 @@ local function insert_mode() return M._mode():sub(1, 1) == "i" end
 --- refresh renders this node at all: its kind is on, and in markdown a display block
 --- that only defines macros is not drawn
 local function wanted(n, md, kinds)
-  return kinds[n.kind == "inline" and "inline" or "display"] and not (md and n.kind ~= "inline" and ctxmod.macro_only(n.src))
+  return kinds[n.kind == "inline" and "inline" or "display"]
+    and not (md and n.kind ~= "inline" and ctxmod.macro_only(n.src))
 end
 
 local guard = log.guard -- never raise into the editing flow
 
-local function same_range(a, b)
-  return a.srow == b.srow and a.scol == b.scol and a.erow == b.erow and a.ecol == b.ecol
-end
+local function same_range(a, b) return a.srow == b.srow and a.scol == b.scol and a.erow == b.erow and a.ecol == b.ecol end
 
-local function keys_for(node, ctx)
-  return { cache.key(node, ctx, "mathjax"), cache.key(node, ctx, "tectonic") }
-end
+local function keys_for(node, ctx) return { cache.key(node, ctx, "mathjax"), cache.key(node, ctx, "tectonic") } end
 
 --- entry exists at the node's last-detected range, was rendered with this ctx and its
 --- marks are intact
@@ -209,10 +206,16 @@ end
 
 --- the job can still be placed: same text, generation and ctx as when queued
 local function job_ok(buf, job)
-  return attached[buf] and vim.api.nvim_buf_is_valid(buf) and gen[buf] == job.g
-    and vim.b[buf].changedtick == job.tick and last_ctx[buf] == job.ctx
+  return attached[buf]
+    and vim.api.nvim_buf_is_valid(buf)
+    and gen[buf] == job.g
+    and vim.b[buf].changedtick == job.tick
+    and last_ctx[buf] == job.ctx
 end
-queue.setup({ ok = job_ok, run = function(b, job, done) render_node(b, job.node, job.ctx, job.tick, done, nil, job.warm) end })
+queue.setup({
+  ok = job_ok,
+  run = function(b, job, done) render_node(b, job.node, job.ctx, job.tick, done, nil, job.warm) end,
+})
 
 --- User InkMathRender, once the latest refresh's queue is empty and its renders finished
 function check_drain(buf)
@@ -220,9 +223,16 @@ function check_drain(buf)
   if not scan or (outstanding[buf] or 0) > 0 or queue.waiting(buf) then return end
   drain[buf] = nil
   local lo, hi = math.huge, -1
-  for _, sc in ipairs(scan) do lo, hi = math.min(lo, sc[1]), math.max(hi, sc[2]) end
-  events.emit("Render", { buf = buf, placed = vim.tbl_count(state.get(buf).nodes),
-    errors = vim.tbl_count(diags.all(buf)), srow = lo, erow = hi })
+  for _, sc in ipairs(scan) do
+    lo, hi = math.min(lo, sc[1]), math.max(hi, sc[2])
+  end
+  events.emit("Render", {
+    buf = buf,
+    placed = vim.tbl_count(state.get(buf).nodes),
+    errors = vim.tbl_count(diags.all(buf)),
+    srow = lo,
+    erow = hi,
+  })
 end
 
 --- Detect, place cached renders and queue the rest for the rows the windows show (plus
@@ -319,8 +329,15 @@ function M.refresh(buf, range)
         if v.fill then
           -- background fill: render to the disk cache only (placed when scrolled to)
           if not (frozen or node.stale or er or fill.is_warm(buf, node)) then
-            jobs[#jobs + 1] = { node = node, ctx = ctx, tick = tick, g = gen[buf], key = cache.key(node, ctx, "mathjax"),
-              prio = prio_of(node.range), warm = true }
+            jobs[#jobs + 1] = {
+              node = node,
+              ctx = ctx,
+              tick = tick,
+              g = gen[buf],
+              key = cache.key(node, ctx, "mathjax"),
+              prio = prio_of(node.range),
+              warm = true,
+            }
           end
         elseif folds.hidden(buf, node) then
           -- closed fold: its first image row would be drawn over the fold line
@@ -339,7 +356,8 @@ function M.refresh(buf, range)
         else
           local mkey = cache.key(node, ctx, "mathjax")
           if not (er and same_range(er.range, node.range) and vim.tbl_contains(er.keys, mkey)) then
-            jobs[#jobs + 1] = { node = node, ctx = ctx, tick = tick, g = gen[buf], key = mkey, prio = prio_of(node.range) }
+            jobs[#jobs + 1] =
+              { node = node, ctx = ctx, tick = tick, g = gen[buf], key = mkey, prio = prio_of(node.range) }
           end
         end
       end
@@ -400,7 +418,11 @@ function M.refresh(buf, range)
     left = not (s.nodes[n.id] or seen[n.id] or n.stale or fill.is_warm(buf, n) or diags.get(buf, n.id))
       and wanted(n, md, kinds)
   end
-  if left then fill.start(buf, #stale > 0, M.refresh) else fill.settled(buf) end
+  if left then
+    fill.start(buf, #stale > 0, M.refresh)
+  else
+    fill.settled(buf)
+  end
 end
 
 local function debounce(buf, which, ms, fn)
@@ -420,9 +442,7 @@ end
 --- are few (residency keeps them near the windows), and asking a window for its last
 --- row (line("w$"), getwininfo) right after an edit computes line heights, which runs
 --- the treesitter highlighter's parse synchronously.
-local function verify_view(buf)
-  placer.verify(buf)
-end
+local function verify_view(buf) placer.verify(buf) end
 
 local function schedule_refresh(buf, ms)
   debounce(buf, "refresh", ms or config.get(buf).debounce_ms, function() M.refresh(buf) end)
@@ -439,12 +459,16 @@ local function kick_refresh(buf)
 end
 
 -- a parse a refresh's detection waited for finished: refresh at once
-incr.on_ready(function(buf) if attached[buf] then schedule_refresh(buf, 0) end end)
+incr.on_ready(function(buf)
+  if attached[buf] then schedule_refresh(buf, 0) end
+end)
 local on_cursor ---@type fun(buf: integer)
 -- an image still placed was deleted: clear it there and place it again; a preview
 -- that showed it is rendered again
 images.on_drop(function(key)
-  for _, b in ipairs(residency.forget_key(vim.tbl_keys(attached), key)) do schedule_refresh(b, 0) end
+  for _, b in ipairs(residency.forget_key(vim.tbl_keys(attached), key)) do
+    schedule_refresh(b, 0)
+  end
   for _, b in ipairs(cursor.drop_key(key)) do
     vim.schedule(function()
       if attached[b] and vim.api.nvim_buf_is_valid(b) then guard("preview", on_cursor, b) end
@@ -453,7 +477,9 @@ images.on_drop(function(key)
 end)
 
 local function each_attached(fn)
-  for b in pairs(attached) do guard("refresh", fn, b) end
+  for b in pairs(attached) do
+    guard("refresh", fn, b)
+  end
 end
 conceal.on_hidden_change(function(b) guard("refresh", M.refresh, b) end)
 
@@ -488,9 +514,7 @@ function on_cursor(buf)
     end
   end
   local cfg = config.get(buf)
-  if conceal.is_hidden(buf) or not (cfg.preview.enabled and insert_mode()) then
-    return cursor.close_preview(buf)
-  end
+  if conceal.is_hidden(buf) or not (cfg.preview.enabled and insert_mode()) then return cursor.close_preview(buf) end
   debounce(buf, "preview", cfg.preview.debounce_ms, function()
     if not (attached[buf] and vim.api.nvim_win_is_valid(win) and insert_mode()) then return end
     if conceal.is_hidden(buf) then return cursor.close_preview(buf) end
@@ -575,7 +599,9 @@ local function setup_globals()
     for _, e in pairs(state.get(b).nodes) do
       if folds.overlay(e.node) then rows_[#rows_ + 1] = e.node.range.srow end
     end
-    for _, r in pairs(folded[b] or {}) do rows_[#rows_ + 1] = r end
+    for _, r in pairs(folded[b] or {}) do
+      rows_[#rows_ + 1] = r
+    end
     return rows_
   end, function(b) schedule_refresh(b) end)
   au({ "VimResume" }, function() images.retransmit_all() end)

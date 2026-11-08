@@ -12,9 +12,19 @@ local stubs = {
   { require("inkmath.term.tmux"), "in_tmux", function() return false end },
   { require("inkmath.term.cells"), "cell_size", function() return { w = 10, h = 20 } end },
   { require("inkmath.render"), "available", function() return { mathjax = false, tectonic = true } end },
-  { require("inkmath.render"), "render", function(n, ctx, cb)
-    cb({ key = require("inkmath.render.cache").key(n, ctx, "mathjax"), path = "/stub.png", cols = 1, rows = 1, ratio = 0.5 })
-  end },
+  {
+    require("inkmath.render"),
+    "render",
+    function(n, ctx, cb)
+      cb({
+        key = require("inkmath.render.cache").key(n, ctx, "mathjax"),
+        path = "/stub.png",
+        cols = 1,
+        rows = 1,
+        ratio = 0.5,
+      })
+    end,
+  },
   { vim, "notify", function() end },
 }
 local saved, bufs = {}, {}
@@ -33,12 +43,17 @@ local function reload_plugin()
 end
 
 --- run the scheduled FileType attach
-local function flush_schedule() vim.wait(20, function() return false end) end
+local function flush_schedule()
+  vim.wait(20, function() return false end)
+end
 
 T["policy"] = MiniTest.new_set({
   hooks = {
     pre_case = function()
-      for i, s in ipairs(stubs) do saved[i] = s[1][s[2]]; s[1][s[2]] = s[3] end
+      for i, s in ipairs(stubs) do
+        saved[i] = s[1][s[2]]
+        s[1][s[2]] = s[3]
+      end
       reload_plugin()
       vim.g.inkmath_disable = nil
       c.reset()
@@ -51,7 +66,9 @@ T["policy"] = MiniTest.new_set({
         pcall(vim.api.nvim_buf_delete, b, { force = true })
       end
       bufs = {}
-      for i, s in ipairs(stubs) do s[1][s[2]] = saved[i] end
+      for i, s in ipairs(stubs) do
+        s[1][s[2]] = saved[i]
+      end
       vim.g.inkmath_disable = nil
       c.reset()
       enable._reset()
@@ -215,15 +232,19 @@ P[":InkMath! disable / enable are global"] = function()
   vim.cmd("InkMath! toggle")
   eq(enable.global(), true)
 end
-P["global toggle map exists"] = function()
-  eq(vim.fn.maparg("<Plug>(inkmath-toggle-global)", "n") ~= "", true)
-end
+P["global toggle map exists"] = function() eq(vim.fn.maparg("<Plug>(inkmath-toggle-global)", "n") ~= "", true) end
 
 P["setup() inside FileType: a later FileType handler's b:inkmath_disable wins"] = function()
   vim.api.nvim_clear_autocmds({ group = "inkmath_filetype" }) -- lazy.nvim ft= loads the plugin inside FileType
   local g = vim.api.nvim_create_augroup("inkmath_test_ft", { clear = true })
-  vim.api.nvim_create_autocmd("FileType", { group = g, pattern = "markdown", callback = function() require("inkmath").setup({}) end })
-  vim.api.nvim_create_autocmd("FileType", { group = g, pattern = "markdown", callback = function(ev) vim.b[ev.buf].inkmath_disable = true end })
+  vim.api.nvim_create_autocmd(
+    "FileType",
+    { group = g, pattern = "markdown", callback = function() require("inkmath").setup({}) end }
+  )
+  vim.api.nvim_create_autocmd(
+    "FileType",
+    { group = g, pattern = "markdown", callback = function(ev) vim.b[ev.buf].inkmath_disable = true end }
+  )
   local b = buf(nil, "text")
   vim.bo[b].filetype = "markdown"
   flush_schedule()

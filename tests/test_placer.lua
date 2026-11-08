@@ -14,9 +14,7 @@ local function setup_buf(lines)
   return buf
 end
 
-local function marks(buf)
-  return vim.api.nvim_buf_get_extmarks(buf, placer.ns, 0, -1, { details = true })
-end
+local function marks(buf) return vim.api.nvim_buf_get_extmarks(buf, placer.ns, 0, -1, { details = true }) end
 
 local function node(kind, r)
   return { id = "n1", kind = kind, src = "x", range = { srow = r[1], scol = r[2], erow = r[3], ecol = r[4] } }
@@ -90,9 +88,7 @@ T["cases"]["whole buffer"] = function()
   placer.place(buf, node("display", { 0, 0, 2, 2 }), { cols = 2, rows = 2 })
   local v
   for _, e in ipairs(marks(buf)) do
-    if e[2] == 0 then
-      eq(e[4].conceal_lines, nil)
-    end
+    if e[2] == 0 then eq(e[4].conceal_lines, nil) end
     if e[4].virt_lines then v = e end
   end
   eq(v[2], 0)
@@ -157,7 +153,9 @@ for _, case in ipairs({
     local a = blk("a", case[3], { 0, 0, 2, #case[2][3] })
     local b = blk("b", case[3], { 3, 0, 5, #case[2][6] })
     local order = case[4] and { b, a } or { a, b }
-    for _, n in ipairs(order) do placer.place(buf, n, { cols = 2, rows = 3 }) end
+    for _, n in ipairs(order) do
+      placer.place(buf, n, { cols = 2, rows = 3 })
+    end
     eq(drawn_rows(buf), { a = 3, b = 3 })
   end
 end

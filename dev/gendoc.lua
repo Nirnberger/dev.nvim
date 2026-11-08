@@ -25,7 +25,11 @@ end
 local function default_of(o, defaults)
   local v = defaults
   for key in o.path:gmatch("[^.]+") do
-    if type(v) == "table" then v = v[key] else v = nil end
+    if type(v) == "table" then
+      v = v[key]
+    else
+      v = nil
+    end
   end
   return vim.inspect(v, { newline = " ", indent = "" })
 end
@@ -53,7 +57,11 @@ end
 function M.section_of(lines)
   local b, e
   for i, l in ipairs(lines) do
-    if l == M.BEGIN then b = i elseif l == M.END then e = i end
+    if l == M.BEGIN then
+      b = i
+    elseif l == M.END then
+      e = i
+    end
   end
   assert(b and e and b < e, "options markers missing in doc/inkmath.txt")
   return vim.list_slice(lines, b + 1, e - 1), b, e

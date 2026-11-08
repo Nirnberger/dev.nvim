@@ -20,8 +20,10 @@ local orig, bufs = {}, {}
 T["stages"] = MiniTest.new_set({
   hooks = {
     pre_case = function()
-      orig.send, orig.supported, orig.in_tmux, orig.cell_size = kitty.send, kitty.supported, tmux.in_tmux, cells.cell_size
-      orig.submit, orig.available, orig.run, orig.request = tectonic.submit, tectonic.available, tectonic._run, mathjax.request
+      orig.send, orig.supported, orig.in_tmux, orig.cell_size =
+        kitty.send, kitty.supported, tmux.in_tmux, cells.cell_size
+      orig.submit, orig.available, orig.run, orig.request =
+        tectonic.submit, tectonic.available, tectonic._run, mathjax.request
       orig.lines, orig.notify = vim.o.lines, vim.notify
       kitty.send = function() end
       kitty.supported = function() return true end
@@ -33,12 +35,16 @@ T["stages"] = MiniTest.new_set({
       config.setup({})
     end,
     post_case = function()
-      for _, b in ipairs(bufs) do pcall(core.detach, b) end
+      for _, b in ipairs(bufs) do
+        pcall(core.detach, b)
+      end
       bufs = {}
       queue.reset()
       require("inkmath.term.images").evict(0, {})
-      kitty.send, kitty.supported, tmux.in_tmux, cells.cell_size = orig.send, orig.supported, orig.in_tmux, orig.cell_size
-      tectonic.submit, tectonic.available, tectonic._run, mathjax.request = orig.submit, orig.available, orig.run, orig.request
+      kitty.send, kitty.supported, tmux.in_tmux, cells.cell_size =
+        orig.send, orig.supported, orig.in_tmux, orig.cell_size
+      tectonic.submit, tectonic.available, tectonic._run, mathjax.request =
+        orig.submit, orig.available, orig.run, orig.request
       vim.o.lines, vim.notify = orig.lines, orig.notify
       config.setup({})
     end,
@@ -70,8 +76,12 @@ T["stages"]["MathJax renders are not delayed behind pending tectonic fallbacks"]
   local salt = tostring(vim.uv.hrtime())
   local lines = { "\\documentclass{article}", "\\begin{document}" }
   -- \textsc is not MathJax: these go to the fallback, and come first (top of the view)
-  for i = 1, 12 do lines[#lines + 1] = ("Fb %d $\\textsc{ab%d%s}$ x."):format(i, i, salt) end
-  for i = 1, 30 do lines[#lines + 1] = ("Mj %d $y_{%d}^{%s}$ x."):format(i, i, salt) end
+  for i = 1, 12 do
+    lines[#lines + 1] = ("Fb %d $\\textsc{ab%d%s}$ x."):format(i, i, salt)
+  end
+  for i = 1, 30 do
+    lines[#lines + 1] = ("Mj %d $y_{%d}^{%s}$ x."):format(i, i, salt)
+  end
   lines[#lines + 1] = "\\end{document}"
   local buf = open(lines)
   core.attach(buf, { sync = true })
@@ -89,7 +99,9 @@ T["stages"]["backend = tectonic: the visible formulas go into few tectonic runs"
   end
   local salt = tostring(vim.uv.hrtime())
   local lines = { "\\documentclass{article}", "\\begin{document}" }
-  for i = 1, 24 do lines[#lines + 1] = ("Text %d $x_{%d}^{%s}$ end."):format(i, i, salt) end
+  for i = 1, 24 do
+    lines[#lines + 1] = ("Text %d $x_{%d}^{%s}$ end."):format(i, i, salt)
+  end
   lines[#lines + 1] = "\\end{document}"
   local buf = open(lines)
   core.attach(buf, { sync = true })
@@ -104,7 +116,12 @@ T["stages"]["preview and normal render of the same node share one worker request
     requests = requests + 1
     return orig.request(...)
   end
-  local node = { id = "p", kind = "inline", src = "p_{" .. vim.uv.hrtime() .. "}", range = { srow = 0, scol = 0, erow = 0, ecol = 1 } }
+  local node = {
+    id = "p",
+    kind = "inline",
+    src = "p_{" .. vim.uv.hrtime() .. "}",
+    range = { srow = 0, scol = 0, erow = 0, ecol = 1 },
+  }
   local ctx = { color = "#c0caf5", cell_w = 10, cell_h = 20, container_px = 800, macros = {} }
   local got = {}
   render.render(node, ctx, function(img) got[#got + 1] = img end)

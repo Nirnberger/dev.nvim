@@ -71,7 +71,9 @@ function M.read(path)
     files[#files + 1] = inp:sub(1, 1) == "/" and inp or (dir .. "/" .. inp)
   end
   local stamps = {}
-  for i, f in ipairs(files) do stamps[i] = fcache.stamp(f) or "-" end
+  for i, f in ipairs(files) do
+    stamps[i] = fcache.stamp(f) or "-"
+  end
   local key = table.concat(stamps, "|")
   local m = merged[path]
   if m and m.key == key then return m.labels end
@@ -79,7 +81,9 @@ function M.read(path)
   for i = #files, 1, -1 do -- the main file wins on duplicate keys
     local sub = i == 1 and p or parsed(files[i])
     if sub then
-      for k, v in pairs(sub.labels) do out[k] = v end
+      for k, v in pairs(sub.labels) do
+        out[k] = v
+      end
     end
   end
   merged[path] = { key = key, labels = out }
@@ -111,7 +115,9 @@ function M.rows(src, one_row)
     else
       local word = src:match("^%a+", i + 1)
       local name, after
-      if word == "begin" or word == "end" then name, after = src:match("^%s*{([^}]*)}()", i + 1 + #word) end
+      if word == "begin" or word == "end" then
+        name, after = src:match("^%s*{([^}]*)}()", i + 1 + #word)
+      end
       if name and word == "begin" then
         depth = depth + 1
         if depth == 1 then
@@ -173,7 +179,9 @@ local function uncomment(l)
     local p = l:find("%", i, true)
     if not p then return l end
     local bs = 0
-    while p - bs > 1 and l:sub(p - bs - 1, p - bs - 1) == "\\" do bs = bs + 1 end
+    while p - bs > 1 and l:sub(p - bs - 1, p - bs - 1) == "\\" do
+      bs = bs + 1
+    end
     if bs % 2 == 0 then return l:sub(1, p - 1) end
     i = p + 1
   end
@@ -206,7 +214,11 @@ function M.numbering(lines)
       local function scan(text)
         for word, name in text:gmatch("\\(%a+)%s*{(%a+%*?)}") do
           if name == env then
-            if word == "begin" then depth = depth + 1 elseif word == "end" then depth = depth - 1 end
+            if word == "begin" then
+              depth = depth + 1
+            elseif word == "end" then
+              depth = depth - 1
+            end
           end
         end
       end

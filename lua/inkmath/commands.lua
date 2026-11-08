@@ -60,9 +60,18 @@ local function api() return require("inkmath.api") end
 --- bang: every buffer (the global switch), else the current buffer
 local function scope(bang) return (not bang) and 0 or nil end
 
-M.register("enable", { desc = "Render math in this buffer (!: everywhere)", run = function(_, bang) api().enable(scope(bang)) end })
-M.register("disable", { desc = "Stop rendering in this buffer (!: everywhere)", run = function(_, bang) api().disable(scope(bang)) end })
-M.register("toggle", { desc = "Toggle rendering in this buffer (!: everywhere)", run = function(_, bang) api().toggle(scope(bang)) end })
+M.register(
+  "enable",
+  { desc = "Render math in this buffer (!: everywhere)", run = function(_, bang) api().enable(scope(bang)) end }
+)
+M.register(
+  "disable",
+  { desc = "Stop rendering in this buffer (!: everywhere)", run = function(_, bang) api().disable(scope(bang)) end }
+)
+M.register(
+  "toggle",
+  { desc = "Toggle rendering in this buffer (!: everywhere)", run = function(_, bang) api().toggle(scope(bang)) end }
+)
 M.register("refresh", { desc = "Re-render the current buffer", run = function() api().refresh(0) end })
 M.register("clear-cache", {
   desc = "Delete the image cache and render again",

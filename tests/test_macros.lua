@@ -11,9 +11,7 @@ T["operator star"] = function()
   eq(f({ "\\DeclareMathOperator*{\\argmax}{arg\\,max}" }), { argmax = "\\operatorname*{arg\\,max}" })
 end
 T["let"] = function() eq(f({ "\\let\\phi\\varphi" }), { phi = "\\varphi" }) end
-T["multiline"] = function()
-  eq(f({ "\\newcommand{\\foo}{", "  a + {b}", "}" }), { foo = "\n  a + {b}\n" })
-end
+T["multiline"] = function() eq(f({ "\\newcommand{\\foo}{", "  a + {b}", "}" }), { foo = "\n  a + {b}\n" }) end
 T["ignores others"] = function() eq(f({ "\\usepackage{amsmath}" }), {}) end
 
 return T

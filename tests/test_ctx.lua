@@ -20,7 +20,9 @@ T["cases"] = MiniTest.new_set({
     end,
     post_case = function()
       cells.cell_size = orig_cs
-      for _, b in ipairs(bufs) do pcall(vim.api.nvim_buf_delete, b, { force = true }) end
+      for _, b in ipairs(bufs) do
+        pcall(vim.api.nvim_buf_delete, b, { force = true })
+      end
       bufs = {}
     end,
   },
@@ -128,7 +130,8 @@ T["cases"]["\\input forms: no braces, explicit extension, missing file"] = funct
     "\\input a",
     "\\include{b.sty.tex} % comment",
     "\\input{missing}",
-    "\\begin{document}", "\\end{document}",
+    "\\begin{document}",
+    "\\end{document}",
   })
   write(d .. "/sub.tex", { "x" })
   local b = open(d .. "/sub.tex", d .. "/main.tex")

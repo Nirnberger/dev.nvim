@@ -50,7 +50,9 @@ T["no tools: a render fails fast with `unavailable`, never hangs"] = function()
   local n = { id = "q", kind = "inline", src = "x^2", range = { 0, 0, 0, 3 } }
   local c = { color = "#c0caf5", cell_w = 10, cell_h = 20, container_px = 800, macros = {} }
   local done, img, err
-  require("inkmath.render").render(n, c, function(i, e) done, img, err = true, i, e end)
+  require("inkmath.render").render(n, c, function(i, e)
+    done, img, err = true, i, e
+  end)
   vim.wait(10000, function() return done end, 20)
   assert(done, "render callback not called")
   eq(img, nil)

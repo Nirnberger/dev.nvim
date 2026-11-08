@@ -16,22 +16,26 @@ local by_ft = {} ---@type table<string, table> resolved + overrides[ft], this ge
 local notify = log.notify
 
 local function warn_all(warns)
-  for _, w in ipairs(warns) do notify("inkmath: " .. w, vim.log.levels.WARN) end
+  for _, w in ipairs(warns) do
+    notify("inkmath: " .. w, vim.log.levels.WARN)
+  end
 end
 
 local function warn_unregistered(filetypes)
   local registry = require("inkmath.detect.registry")
   for _, ft in ipairs(filetypes) do
     if not registry.get(ft) then
-      notify(("inkmath: filetype '%s' has no math detector; add one with require(\"inkmath\").register_filetype()"):format(ft),
-        vim.log.levels.WARN)
+      notify(
+        ("inkmath: filetype '%s' has no math detector; add one with require(\"inkmath\").register_filetype()"):format(
+          ft
+        ),
+        vim.log.levels.WARN
+      )
     end
   end
 end
 
-local function errors_message(errs)
-  return "inkmath: invalid config:\n  - " .. table.concat(errs, "\n  - ")
-end
+local function errors_message(errs) return "inkmath: invalid config:\n  - " .. table.concat(errs, "\n  - ") end
 
 local function invalidate()
   M.generation = M.generation + 1
@@ -132,8 +136,6 @@ end
 --- the config a render ctx was built with (ad-hoc ctx tables in tests have none)
 ---@param ctx table|nil
 ---@return table
-function M.of(ctx)
-  return ctx and ctx.opts or M.get()
-end
+function M.of(ctx) return ctx and ctx.opts or M.get() end
 
 return M

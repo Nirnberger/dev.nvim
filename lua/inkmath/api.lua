@@ -8,9 +8,7 @@ local M = {}
 
 local function core() return require("inkmath.core") end
 
-local function resolve(buf)
-  return buf == 0 and vim.api.nvim_get_current_buf() or buf
-end
+local function resolve(buf) return buf == 0 and vim.api.nvim_get_current_buf() or buf end
 
 local pending = vim.api.nvim_create_augroup("inkmath_pending", { clear = true })
 --- buffers this module detached (policy, global disable): re-applying may attach
@@ -35,12 +33,19 @@ function M._reapply(now)
     if vim.api.nvim_buf_is_loaded(b) then
       local ok = enable.allowed(b)
       if core().is_attached(b) then
-        if ok then core().reconfigure(b) else release(b) end
+        if ok then
+          core().reconfigure(b)
+        else
+          release(b)
+        end
       elseif ok and (released[b] or core()._generation(b) == 0) then
         released[b] = nil
         if #vim.fn.win_findbuf(b) == 0 then
           vim.api.nvim_clear_autocmds({ group = pending, buffer = b })
-          vim.api.nvim_create_autocmd("BufWinEnter", { group = pending, buffer = b, once = true, callback = function() M._auto(b) end })
+          vim.api.nvim_create_autocmd(
+            "BufWinEnter",
+            { group = pending, buffer = b, once = true, callback = function() M._auto(b) end }
+          )
         elseif now then
           core().attach(b)
         else
@@ -93,7 +98,11 @@ end
 function M.toggle(buf)
   buf = resolve(buf)
   local on = buf and core().is_attached(buf) or (not buf and enable.global())
-  if on then M.disable(buf) else M.enable(buf) end
+  if on then
+    M.disable(buf)
+  else
+    M.enable(buf)
+  end
 end
 
 ---@param buf? integer
@@ -138,9 +147,18 @@ function M.get_formulas(buf, range)
     local r = n.range
     if not range or (r.srow <= range.erow and r.erow >= range.srow) then
       local rendered, err = false, nil
-      if attached then rendered, err = core()._formula_info(buf, n.id) end
-      out[#out + 1] = { id = n.id, kind = n.kind, src = n.src, env = n.env, rendered = rendered, error = err,
-        range = { srow = r.srow, scol = r.scol, erow = r.erow, ecol = r.ecol } }
+      if attached then
+        rendered, err = core()._formula_info(buf, n.id)
+      end
+      out[#out + 1] = {
+        id = n.id,
+        kind = n.kind,
+        src = n.src,
+        env = n.env,
+        rendered = rendered,
+        error = err,
+        range = { srow = r.srow, scol = r.scol, erow = r.erow, ecol = r.ecol },
+      }
     end
   end
   return out
@@ -187,12 +205,22 @@ function M.render(tex, opts, cb)
   local ctx = ctxmod.for_string(opts)
   if not ctx then return cb(nil, ctxmod.NO_CELL_SIZE) end
   local kind = opts.kind or "inline"
-  local node = { id = require("inkmath.detect").node_id(kind, nil, tex), kind = kind, src = tex,
-    range = { srow = 0, scol = 0, erow = 0, ecol = #tex } }
+  local node = {
+    id = require("inkmath.detect").node_id(kind, nil, tex),
+    kind = kind,
+    src = tex,
+    range = { srow = 0, scol = 0, erow = 0, ecol = #tex },
+  }
   require("inkmath.render").render(node, ctx, function(img, err)
     if not img then return cb(nil, (err and err.message) or "render failed") end
-    cb({ path = img.path, cols = img.cols, rows = img.rows, key = img.key,
-      width = img.cols * ctx.cell_w, height = img.rows * ctx.cell_h }, nil)
+    cb({
+      path = img.path,
+      cols = img.cols,
+      rows = img.rows,
+      key = img.key,
+      width = img.cols * ctx.cell_w,
+      height = img.rows * ctx.cell_h,
+    }, nil)
   end)
 end
 

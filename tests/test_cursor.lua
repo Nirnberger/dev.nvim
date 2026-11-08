@@ -9,9 +9,7 @@ local T = MiniTest.new_set()
 local eq = MiniTest.expect.equality
 
 local orig_ensure, orig_render
-local function marks(buf)
-  return vim.api.nvim_buf_get_extmarks(buf, placer.ns, 0, -1, {})
-end
+local function marks(buf) return vim.api.nvim_buf_get_extmarks(buf, placer.ns, 0, -1, {}) end
 
 local function node(id, r)
   return { id = id, kind = "inline", src = id, range = { srow = r[1], scol = r[2], erow = r[3], ecol = r[4] } }
@@ -176,7 +174,11 @@ T["cases"]["newest request wins without edit"] = function()
   render.render = function(n, _, cb)
     calls = calls + 1
     local img = { key = n.src, path = "/x", cols = 2, rows = 1 }
-    if calls == 1 then vim.defer_fn(function() cb(img) end, 100) else cb(img) end
+    if calls == 1 then
+      vim.defer_fn(function() cb(img) end, 100)
+    else
+      cb(img)
+    end
   end
   cursor.preview(buf, 0, node("A", { 0, 2, 0, 5 }), {})
   cursor.preview(buf, 0, node("B", { 0, 2, 0, 5 }), {})
@@ -254,7 +256,10 @@ end
 local function err_render()
   render.render = function(n, _, cb)
     if n.src:find("\\frac{", 1, true) then
-      return cb(nil, { message = "TeX parse error: Missing close brace after \\frac in the formula you are typing right now", backend = "mathjax" })
+      return cb(nil, {
+        message = "TeX parse error: Missing close brace after \\frac in the formula you are typing right now",
+        backend = "mathjax",
+      })
     end
     cb({ key = n.src, path = "/x", cols = 2, rows = 1 })
   end
@@ -322,7 +327,9 @@ end
 T["cases"]["error wraps to the window width"] = function()
   local lines = cursor._wrap(("word "):rep(40), 20, 3)
   eq(#lines, 3)
-  for _, l in ipairs(lines) do eq(vim.fn.strdisplaywidth(l) <= 20, true) end
+  for _, l in ipairs(lines) do
+    eq(vim.fn.strdisplaywidth(l) <= 20, true)
+  end
   eq(vim.endswith(lines[3], "…"), true)
   eq(cursor._wrap("short", 20, 3), { "short" })
 end

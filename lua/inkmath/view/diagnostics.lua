@@ -26,7 +26,9 @@ function M.all(buf) return errs[buf] or {} end
 ---@param buf integer
 function M.publish(buf)
   local list = {}
-  for _, e in pairs(errs[buf] or {}) do list[#list + 1] = e.diag end
+  for _, e in pairs(errs[buf] or {}) do
+    list[#list + 1] = e.diag
+  end
   if vim.api.nvim_buf_is_valid(buf) then vim.diagnostic.set(M.ns, buf, list) end
 end
 
@@ -47,15 +49,28 @@ end
 function M.set(buf, node, keys, err)
   M.clear(buf, node.id)
   local r = node.range
-  local ok, mark = pcall(vim.api.nvim_buf_set_extmark, buf, ns_mark, r.srow, r.scol,
-    { end_row = r.erow, end_col = r.ecol, hl_group = "InkMathError" })
+  local ok, mark = pcall(
+    vim.api.nvim_buf_set_extmark,
+    buf,
+    ns_mark,
+    r.srow,
+    r.scol,
+    { end_row = r.erow, end_col = r.ecol, hl_group = "InkMathError" }
+  )
   errs[buf] = errs[buf] or {}
   errs[buf][node.id] = {
     range = r,
     keys = keys,
     mark = ok and mark or nil,
-    diag = { lnum = r.srow, col = r.scol, end_lnum = r.erow, end_col = r.ecol,
-      severity = vim.diagnostic.severity.ERROR, source = "inkmath", message = (err and err.message) or "render failed" },
+    diag = {
+      lnum = r.srow,
+      col = r.scol,
+      end_lnum = r.erow,
+      end_col = r.ecol,
+      severity = vim.diagnostic.severity.ERROR,
+      source = "inkmath",
+      message = (err and err.message) or "render failed",
+    },
   }
 end
 

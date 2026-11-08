@@ -18,8 +18,6 @@ function M.get(buf)
 end
 
 ---@param buf integer
-function M.reset(buf)
-  bufs[buf] = nil
-end
+function M.reset(buf) bufs[buf] = nil end
 
 return M

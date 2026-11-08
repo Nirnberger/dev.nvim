@@ -69,7 +69,8 @@ T["clear_math_conceal removes vimtex math conceal and restores the global"] = fu
   local dir = project()
   child.lua(("_G.buf = open_tex(%q)"):format(dir .. "/main.tex"))
   -- line 3 is `$\alpha^2$`; column 2 is the backslash of \alpha
-  local probe = [[(function() vim.cmd("redraw"); return vim.api.nvim_buf_call(_G.buf, function() return vim.fn.synconcealed(3, 2)[1] end) end)()]]
+  local probe =
+    [[(function() vim.cmd("redraw"); return vim.api.nvim_buf_call(_G.buf, function() return vim.fn.synconcealed(3, 2)[1] end) end)()]]
   eq(child.lua_get("vim.b[_G.buf].vimtex_syntax ~= nil"), true)
   eq(child.lua_get(probe), 1) -- vimtex conceals \alpha by default
   local before = child.lua_get("vim.g.vimtex_syntax_conceal")

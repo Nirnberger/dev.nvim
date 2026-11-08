@@ -132,9 +132,7 @@ end
 
 ---@param key string
 ---@return integer|nil id assigned to an image key (nil when never ensured or evicted)
-function M.id(key)
-  return ids[key]
-end
+function M.id(key) return ids[key] end
 
 ---@return integer images resident in the terminal
 function M.resident_count() return vim.tbl_count(resident) end
@@ -174,7 +172,9 @@ end
 function M.delete_all()
   local list = vim.tbl_keys(resident)
   table.sort(list)
-  for _, id in ipairs(list) do drop(id) end
+  for _, id in ipairs(list) do
+    drop(id)
+  end
 end
 
 --- Transmit every resident image again (the terminal may have dropped them). One

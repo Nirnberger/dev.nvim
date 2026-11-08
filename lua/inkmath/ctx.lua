@@ -18,7 +18,8 @@ local vimtex = require("inkmath.vimtex")
 
 local M = {}
 
-local MACRO_LINE = { "^%s*$", "^%s*\\newcommand", "^%s*\\renewcommand", "^%s*\\def", "^%s*\\DeclareMathOperator", "^%s*\\let" }
+local MACRO_LINE =
+  { "^%s*$", "^%s*\\newcommand", "^%s*\\renewcommand", "^%s*\\def", "^%s*\\DeclareMathOperator", "^%s*\\let" }
 
 --- text consists only of macro definitions (and blank lines)
 ---@param text string
@@ -27,7 +28,10 @@ function M.macro_only(text)
   for line in (text .. "\n"):gmatch("(.-)\n") do
     local ok = false
     for _, p in ipairs(MACRO_LINE) do
-      if line:match(p) then ok = true break end
+      if line:match(p) then
+        ok = true
+        break
+      end
     end
     if not ok then return false end
   end
@@ -51,7 +55,10 @@ local function markdown_macro_lines(buf)
         j = j + 1
         if j > #lines then return out end
         local s = lines[j]
-        if s:find("%$%$%s*$") then closed = true s = s:gsub("%$%$%s*$", "") end
+        if s:find("%$%$%s*$") then
+          closed = true
+          s = s:gsub("%$%$%s*$", "")
+        end
         parts[#parts + 1] = s
       end
       local text = table.concat(parts, "\n")

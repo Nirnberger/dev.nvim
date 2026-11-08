@@ -14,9 +14,7 @@ local eq = MiniTest.expect.equality
 local orig = {}
 local errors = {}
 
-local function marks(buf)
-  return vim.api.nvim_buf_get_extmarks(buf, placer.ns, 0, -1, { details = true })
-end
+local function marks(buf) return vim.api.nvim_buf_get_extmarks(buf, placer.ns, 0, -1, { details = true }) end
 
 --- open dev/samples/<name> in the current window and return buf, lines
 local function open(name, ft)
@@ -90,7 +88,9 @@ T["samples"]["inline.md renders and keeps \\$5 as text"] = function()
   eq(#marks(buf) >= 7, true)
   eq(errors, {})
   local row = find_row(lines, "Cost is")
-  for _, m in ipairs(marks(buf)) do eq(m[2] ~= row, true) end
+  for _, m in ipairs(marks(buf)) do
+    eq(m[2] ~= row, true)
+  end
 end
 
 T["samples"]["display.md renders"] = function()

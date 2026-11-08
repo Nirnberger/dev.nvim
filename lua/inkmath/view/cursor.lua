@@ -121,9 +121,7 @@ function M.close_preview(buf)
   local p = previews[buf]
   if not p then return end
   p.seq = p.seq + 1 -- invalidate in-flight requests
-  if p.win and vim.api.nvim_win_is_valid(p.win) then
-    pcall(vim.api.nvim_win_close, p.win, true)
-  end
+  if p.win and vim.api.nvim_win_is_valid(p.win) then pcall(vim.api.nvim_win_close, p.win, true) end
   p.win = nil
   p.img_key = nil
   -- the scratch buffer is kept and reused for the next preview
@@ -131,9 +129,7 @@ end
 
 ---@param p inkmath.PreviewState
 local function ensure_buf(p)
-  if not (p.fbuf and vim.api.nvim_buf_is_valid(p.fbuf)) then
-    p.fbuf = vim.api.nvim_create_buf(false, true)
-  end
+  if not (p.fbuf and vim.api.nvim_buf_is_valid(p.fbuf)) then p.fbuf = vim.api.nvim_create_buf(false, true) end
   return p.fbuf
 end
 
@@ -200,7 +196,9 @@ function M._wrap(text, width, max)
   local out, cur = {}, ""
   for word in tostring(text):gsub("%s+", " "):gmatch("%S+") do
     while vim.fn.strdisplaywidth(word) > width do -- a word longer than a line
-      if cur ~= "" then out[#out + 1], cur = cur, "" end
+      if cur ~= "" then
+        out[#out + 1], cur = cur, ""
+      end
       local part = vim.fn.strcharpart(word, 0, width)
       out[#out + 1], word = part, vim.fn.strcharpart(word, vim.fn.strchars(part))
     end

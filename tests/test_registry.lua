@@ -9,7 +9,9 @@ T["built-ins"] = function()
   eq(registry.get("tex").lang, "latex")
   eq(registry.get("markdown").detector, "inkmath.detect.markdown")
   -- other test files register more filetypes (mdx, ...)
-  for _, ft in ipairs({ "markdown", "tex" }) do eq(vim.list_contains(registry.filetypes(), ft), true) end
+  for _, ft in ipairs({ "markdown", "tex" }) do
+    eq(vim.list_contains(registry.filetypes(), ft), true)
+  end
 end
 T["register validates the spec"] = function()
   eq(pcall(registry.register, "x", { lang = "markdown" }), false)
@@ -44,8 +46,11 @@ T["registered ctx kind gives macros"] = function()
   cells.cell_size = function() return { w = 10, h = 20 } end
   local b = h.buf({ "$$\\newcommand{\\R}{\\mathbb{R}}$$", "", "$\\R$" }, "mdx")
   eq(require("inkmath.ctx").build(b).macros.R ~= nil, true)
-  registry.register("custom", { lang = "markdown", detector = "inkmath.detect.markdown",
-    ctx = function() return { macros = { Q = "\\mathbb{Q}" } } end })
+  registry.register("custom", {
+    lang = "markdown",
+    detector = "inkmath.detect.markdown",
+    ctx = function() return { macros = { Q = "\\mathbb{Q}" } } end,
+  })
   vim.bo[b].filetype = "custom"
   eq(require("inkmath.ctx").build(b).macros.Q, "\\mathbb{Q}")
   cells.cell_size = orig

@@ -15,9 +15,7 @@ local function touch(p)
 end
 local A, B = touch(vim.fn.tempname() .. "-a.png"), touch(vim.fn.tempname() .. "-b.png")
 
-T["tmux.wrap doubles escapes"] = function()
-  eq(tmux.wrap("\27_Gx\27\\"), "\27Ptmux;\27\27_Gx\27\27\\\27\\")
-end
+T["tmux.wrap doubles escapes"] = function() eq(tmux.wrap("\27_Gx\27\\"), "\27Ptmux;\27\27_Gx\27\27\\\27\\") end
 
 T["transmit_seq local"] = function()
   eq(
@@ -141,7 +139,9 @@ T["retransmit_all drops images whose file is gone"] = function()
     sent = {}
     images.retransmit_all()
     eq(vim.tbl_contains(sent, kitty.delete_seq(id)), true)
-    for _, x in ipairs(sent) do eq(x:find("_Ga=T,", 1, true) ~= nil and x:find("i=" .. id .. ",", 1, true) ~= nil, false) end
+    for _, x in ipairs(sent) do
+      eq(x:find("_Ga=T,", 1, true) ~= nil and x:find("i=" .. id .. ",", 1, true) ~= nil, false)
+    end
     eq(dropped, { "gone-key" })
     eq(images.id("gone-key"), nil)
   end)
@@ -189,7 +189,9 @@ local function with_sources(o, fn)
   cells._ioctl = function() return -1, nil end
   cells._from_tmux = function() return o.tmux end
   tmux.in_tmux = function() return o.in_tmux or false end
-  kitty.send = function(seq) if seq == "\27[16t" then csi = csi + 1 end end
+  kitty.send = function(seq)
+    if seq == "\27[16t" then csi = csi + 1 end
+  end
   local ok, e = pcall(fn)
   cells._ioctl, cells._from_tmux, kitty.send, tmux.in_tmux = unpack(saved)
   cells.refresh()
@@ -212,9 +214,10 @@ T["cell size failure is cached until refresh"] = function()
 end
 
 T["tmux cell size is asked before CSI"] = function()
-  local csi = with_sources({ in_tmux = true, tmux = { w = 8, h = 16 } }, function()
-    eq(cells.cell_size(), { w = 8, h = 16 })
-  end)
+  local csi = with_sources(
+    { in_tmux = true, tmux = { w = 8, h = 16 } },
+    function() eq(cells.cell_size(), { w = 8, h = 16 }) end
+  )
   eq(csi, 0)
 end
 
@@ -251,9 +254,13 @@ T["supported detects ghostty via tmux client_termtype"] = function()
   local kitty = require("inkmath.term.kitty")
   local tmux = require("inkmath.term.tmux")
   local saved = {
-    in_tmux = tmux.in_tmux, system = vim.fn.system, exec = vim.fn.executable,
-    TERM = vim.env.TERM, TERM_PROGRAM = vim.env.TERM_PROGRAM,
-    G = vim.env.GHOSTTY_RESOURCES_DIR, K = vim.env.KITTY_WINDOW_ID,
+    in_tmux = tmux.in_tmux,
+    system = vim.fn.system,
+    exec = vim.fn.executable,
+    TERM = vim.env.TERM,
+    TERM_PROGRAM = vim.env.TERM_PROGRAM,
+    G = vim.env.GHOSTTY_RESOURCES_DIR,
+    K = vim.env.KITTY_WINDOW_ID,
   }
   vim.env.TERM, vim.env.TERM_PROGRAM = "tmux-256color", "tmux"
   vim.env.GHOSTTY_RESOURCES_DIR, vim.env.KITTY_WINDOW_ID = nil, nil
