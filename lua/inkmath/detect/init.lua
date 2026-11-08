@@ -14,7 +14,7 @@ local registry = require("inkmath.detect.registry")
 ---@param src string
 ---@return string
 function M.node_id(kind, env, src)
-  return vim.fn.sha256(kind .. "\0" .. (env or "") .. "\0" .. src):sub(1, 16)
+  return vim.fn.sha256(kind .. "\31" .. (env or "") .. "\31" .. src):sub(1, 16)
 end
 
 --- Make ids unique per occurrence (in place): content id .. "#" .. n, n counting the
