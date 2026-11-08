@@ -415,7 +415,7 @@ T["tex: async parse, then ready"] = function()
   end
   incr.on_ready(function() end)
   eq(norm(in_rows(incr.detect(b, want), want)), norm(in_rows(detect.detect(b), want)))
-  eq(ms < 50, true)
+  eq(ms < 50 * h.perf_factor, true)
   incr.forget(b)
 end
 

@@ -195,8 +195,8 @@ I["fill takes its next step when the queued renders finish"] = function()
   local t0 = vim.uv.hrtime()
   eq(filled(b), "done")
   local ms = (vim.uv.hrtime() - t0) / 1e6
-  -- ~100 steps: one idle delay (50 ms) each would take 5 s
-  eq(ms < 2500, true)
+  -- ~100 steps: one idle delay (50 ms) each would take 5 s; the scaled limit stays below that
+  eq(ms < math.min(2500 * h.perf_factor, 4000), true)
 end
 
 I["edit cancels fill"] = function()
