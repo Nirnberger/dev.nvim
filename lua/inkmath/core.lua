@@ -460,7 +460,6 @@ conceal.on_hidden_change(function(b) guard("refresh", M.refresh, b) end)
 local function bump(buf) gen[buf] = (gen[buf] or 0) + 1 end
 function M._generation(buf) return gen[buf] or 0 end -- changes when the buffer is detached
 
-local async_parse = vim.fn.has("nvim-0.11.4") == 1
 --- Run fn() once the syntax tree covers row `row`: right away when it is valid (or
 --- the parse finishes within its first 3 ms slice), else when the async parse ends,
 --- so a preview after an edit does not block on a full reparse (~10 ms in a large
@@ -468,7 +467,7 @@ local async_parse = vim.fn.has("nvim-0.11.4") == 1
 local function after_parse(buf, row, fn)
   local spec = require("inkmath.detect.registry").of(buf)
   local ok, parser = pcall(vim.treesitter.get_parser, buf, spec and spec.lang, { error = false })
-  if not (async_parse and ok and parser) or vim.g._ts_force_sync_parsing then return fn() end
+  if not (ok and parser) or vim.g._ts_force_sync_parsing then return fn() end
   local tick = vim.b[buf].changedtick
   parser:parse({ row, row }, function()
     if vim.api.nvim_buf_is_valid(buf) and vim.b[buf].changedtick == tick then guard("preview", fn) end

@@ -1,4 +1,4 @@
--- Closed folds vs. image extmarks (checked headless, Neovim 0.11, tests/test_core.lua
+-- Closed folds vs. image extmarks (checked headless, Neovim 0.12, tests/test_core.lua
 -- "folds: ..."):
 -- * virt_lines and conceal_lines of rows inside a closed fold are not drawn: a folded
 --   display block takes exactly the fold's one screen row;

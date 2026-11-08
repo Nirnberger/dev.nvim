@@ -13,6 +13,11 @@ local function ensure(name, url, branch)
 end
 ensure("mini.nvim", "https://github.com/echasnovski/mini.nvim")
 ensure("nvim-treesitter", "https://github.com/nvim-treesitter/nvim-treesitter", "main")
+-- Several test files point XDG_CACHE_HOME at an empty dir (isolated render cache). Tectonic
+-- follows it on Linux and would re-download its whole bundle each time, so pin its cache first.
+if vim.fn.has("linux") == 1 and not vim.env.TECTONIC_CACHE_DIR then
+  vim.env.TECTONIC_CACHE_DIR = (vim.env.XDG_CACHE_HOME or (vim.env.HOME .. "/.cache")) .. "/tectonic"
+end
 vim.cmd("packloadall")
 for _, d in ipairs({ "/usr/local/bin", "/opt/homebrew/bin" }) do
   if not vim.env.PATH:find(d, 1, true) then vim.env.PATH = d .. ":" .. vim.env.PATH end

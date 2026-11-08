@@ -12,7 +12,7 @@ deps:
 	$(NVIM) -c "qa"
 
 test-worker:
-	cd worker && node --test test/
+	cd worker && node --test test/*.test.mjs
 
 bench:
 	$(NVIM) -c "luafile dev/bench.lua"

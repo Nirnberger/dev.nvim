@@ -101,7 +101,7 @@ function M.key(node, ctx, backend)
     -- tectonic compiles with the document's preamble; MathJax only sees the macros
     backend == "tectonic" and sha(table.concat(ctx.preamble or {}, "\n")) or "",
   }
-  return sha(table.concat(parts, "\0"))
+  return sha(table.concat(parts, "\31")) -- not "\0": vim.fn.sha256 turns a NUL-containing string into a Blob
 end
 
 ---@param key string

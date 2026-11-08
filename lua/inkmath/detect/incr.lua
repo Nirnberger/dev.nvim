@@ -20,7 +20,7 @@
 -- * parse-free: a valid tree is not parsed again. With `want`, an invalid tree is not
 --   parsed synchronously: in markdown with the treesitter highlighter active, its own
 --   parse comes (on_changedtree then calls the on_ready handler once); otherwise an
---   async parse (0.11.4+, 3 ms slices) runs and calls it when done. Meanwhile the
+--   async parse (3 ms slices) runs and calls it when done. Meanwhile the
 --   previous nodes are returned and the dirty rows are reported stale.
 -- * with `want`, the "large" and markdown "dollar" fallbacks re-detect only the
 --   wanted rows (plus whole changed `$$` pairs they intersect); the rest stays stale
@@ -336,8 +336,6 @@ local function can_skip(buf, st, md)
   return not precheck.triggers(lines)
 end
 
-local async_ok = vim.fn.has("nvim-0.11.4") == 1
-
 --- Bring the tree up to date for a detect with `want`. Returns false while a parse
 --- is pending (the previous nodes are returned meanwhile).
 local function parse_for(buf, st, parser, lang, want)
@@ -359,7 +357,7 @@ local function parse_for(buf, st, parser, lang, want)
       end
       return false
     end
-    if async_ok and not vim.g._ts_force_sync_parsing then
+    if not vim.g._ts_force_sync_parsing then
       -- started from the event loop, not in this keystroke's refresh: the parse runs
       -- in 3 ms slices between input, and its callback refreshes again
       st.pending = true

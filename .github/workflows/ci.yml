@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lua:
+    name: nvim ${{ matrix.nvim }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.nvim == 'nightly' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        nvim: [stable, nightly]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: neovim, tree-sitter, tectonic, imagemagick
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/ci-tools.sh ${{ matrix.nvim }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/tectonic
+            ~/.cache/Tectonic
+            ~/Library/Caches/Tectonic
+          key: tectonic-${{ matrix.os }}-${{ hashFiles('scripts/ci-tools.sh') }}
+          restore-keys: tectonic-${{ matrix.os }}-
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/inkmath-dev
+          key: deps-${{ matrix.os }}-${{ matrix.nvim }}-${{ hashFiles('tests/minit.lua') }}
+      - name: worker deps
+        run: cd worker && npm ci
+      - name: tests
+        env:
+          INKMATH_PERF_FACTOR: 3
+        run: make test
+
+  worker:
+    name: node ${{ matrix.node }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: cd worker && npm ci
+      - run: make test-worker
