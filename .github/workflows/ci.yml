@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: neovim, tree-sitter, tectonic
+      - name: neovim, tree-sitter, tectonic, imagemagick
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/ci-tools.sh ${{ matrix.nvim }}

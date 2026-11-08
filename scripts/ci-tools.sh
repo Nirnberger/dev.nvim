@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install CI tools via `gh release download` (the github.com/.../releases/download URLs are flaky).
 # Usage: scripts/ci-tools.sh [nvim-tag]   (needs GH_TOKEN; nvim-tag e.g. v0.11.4, stable, nightly)
-# Installs tree-sitter and tectonic into ~/.local/bin, neovim into ~/nvim; adds them to $GITHUB_PATH.
+# Installs tree-sitter, tectonic and ImageMagick 7 (+ghostscript) into ~/.local/bin, neovim into ~/nvim; adds them to $GITHUB_PATH.
 set -euo pipefail
 
 NVIM_TAG="${1:-}"
@@ -50,6 +50,23 @@ if [ -n "$NVIM_TAG" ]; then
   tar -xzf "$TMP/$NVIM_ASSET.tar.gz" -C "$TMP"
   mv "$TMP/$NVIM_ASSET" "$HOME/nvim"
   [ -z "${GITHUB_PATH:-}" ] || echo "$HOME/nvim/bin" >> "$GITHUB_PATH"
+fi
+
+# ImageMagick 7 (`magick`, needed by the tectonic backend) + ghostscript (PDF input)
+if [ "$(uname -s)" = Darwin ]; then
+  brew install imagemagick ghostscript
+else
+  command -v gs >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y ghostscript; }
+  IM=ImageMagick-7.1.2-35-gcc-x86_64.AppImage
+  gh release download 7.1.2-35 -R ImageMagick/ImageMagick -p "$IM" -D "$TMP"
+  verify f111044ed06b68cfb478df724c5a32d35145afa21073242f888d234a2f8cc002 "$TMP/$IM"
+  rm -rf "$HOME/.local/opt/imagemagick"
+  mkdir -p "$HOME/.local/opt/imagemagick"
+  chmod +x "$TMP/$IM"
+  # no FUSE on runners: extract instead of mounting
+  (cd "$HOME/.local/opt/imagemagick" && "$TMP/$IM" --appimage-extract >/dev/null)
+  printf '#!/bin/sh\nexec "$HOME/.local/opt/imagemagick/squashfs-root/AppRun" "$@"\n' > "$BIN/magick"
+  chmod +x "$BIN/magick"
 fi
 
 [ -z "${GITHUB_PATH:-}" ] || echo "$BIN" >> "$GITHUB_PATH"
