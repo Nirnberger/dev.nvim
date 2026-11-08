@@ -284,6 +284,8 @@ function M.prune(max, cb)
         if f.mtime < old then unlink(name, f.size) end
       elseif name:sub(-4) == ".png" then
         if not keep[name:sub(1, -5)] then pngs[#pngs + 1] = f end
+      elseif name:sub(-4) == ".six" and not size[name:sub(1, -5) .. ".png"] and f.mtime < old then
+        unlink(name, f.size)
       elseif name:sub(-5) == ".json" and not size[name:sub(1, -6) .. ".png"] and f.mtime < old then
         unlink(name, f.size)
       end
@@ -296,6 +298,7 @@ function M.prune(max, cb)
       unlink(f.name, f.size)
       metas[key] = nil
       if size[key .. ".json"] then unlink(key .. ".json", size[key .. ".json"]) end
+      if size[key .. ".six"] then unlink(key .. ".six", size[key .. ".six"]) end
       deleted = deleted + 1
     end
     walked = true

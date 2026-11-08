@@ -14,13 +14,17 @@ local UNSET = {} -- memo sentinel: nothing cached yet
 local memo = UNSET ---@type inkmath.Backend|nil|table
 local memo_why ---@type string|nil
 
---- Candidate backends in `auto` order, by name. Later tasks add Sixel and kitty's overlay mode.
+--- Candidate backends in `auto` order, by name. A later task adds kitty's overlay mode.
 ---@return table<string, inkmath.Backend>
 local function registry()
-  return { kitty = require("inkmath.term.kitty"), iterm2 = require("inkmath.term.backends.iterm2") }
+  return {
+    kitty = require("inkmath.term.kitty"),
+    iterm2 = require("inkmath.term.backends.iterm2"),
+    sixel = require("inkmath.term.backends.sixel"),
+  }
 end
 
-local AUTO_ORDER = { "kitty", "iterm2" }
+local AUTO_ORDER = { "kitty", "iterm2", "sixel" }
 
 ---@param env? table environment to inspect (default: vim.env)
 ---@return inkmath.Backend|nil backend

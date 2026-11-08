@@ -303,8 +303,8 @@ image_ids.per_instance ~
                                                         *inkmath.term.backend*
 term.backend ~
     Default: `"auto"`
-    Terminal graphics backend: 'auto' detects it (kitty/Ghostty, iTerm2), a
-    name forces that backend, 'none' shows no images.
+    Terminal graphics backend: 'auto' detects it (kitty/Ghostty, iTerm2,
+    Sixel), a name forces that backend, 'none' shows no images.
 
                                                            *inkmath.cell_size*
 cell_size ~

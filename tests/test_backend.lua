@@ -87,4 +87,40 @@ T["term.backend iterm2 forces iTerm2"] = function()
   eq(backend.detect({ TERM = "dumb" }).name, "iterm2")
 end
 
+T["sixel is detected from TERM"] = function()
+  for _, env in ipairs({ { TERM = "foot" }, { TERM = "mlterm" }, { TERM = "xterm-sixel" }, { WT_SESSION = "x" } }) do
+    local b = backend.detect(env)
+    eq(b and b.name, "sixel")
+    eq(b.mode, "overlay")
+  end
+end
+
+T["DA1 reply with attribute 4 means sixel"] = function()
+  local sixel = require("inkmath.term.backends.sixel")
+  eq(sixel.da1_has_sixel("\27[?62;4;c"), true)
+  eq(sixel.da1_has_sixel("\27[?62;22c"), false)
+  eq(sixel.da1_has_sixel("\27[?64;14;c"), false)
+  eq(sixel.da1_has_sixel("junk"), false)
+end
+
+T["sixel paint sends the .six file at the cell"] = function()
+  local b = backend.detect({ TERM = "foot" })
+  local base = vim.fn.tempname()
+  local f = assert(io.open(base .. ".six", "wb"))
+  f:write("\27Pq#0~\27\\")
+  f:close()
+  local out = table.concat(b.paint({ path = base .. ".png", cols = 1, rows = 1, id = 1 }, 3, 4))
+  os.remove(base .. ".six")
+  eq(out, "\0277\27[3;4H\27Pq#0~\27\\\0278")
+end
+
+T["sixel paint without .six and without magick is empty"] = function()
+  local b = backend.detect({ TERM = "foot" })
+  local old = vim.fn.executable
+  vim.fn.executable = function() return 0 end
+  local out = b.paint({ path = "/nonexistent/x.png", cols = 1, rows = 1, id = 1 }, 1, 1)
+  vim.fn.executable = old
+  eq(out, {})
+end
+
 return T

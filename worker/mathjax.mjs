@@ -10,6 +10,7 @@ import { liteAdaptor } from "mathjax-full/js/adaptors/liteAdaptor.js";
 import { RegisterHTMLHandler } from "mathjax-full/js/handlers/html.js";
 import { AllPackages } from "mathjax-full/js/input/tex/AllPackages.js";
 import { Resvg } from "@resvg/resvg-js";
+import { encode } from "./sixel.mjs";
 
 const adaptor = liteAdaptor();
 RegisterHTMLHandler(adaptor);
@@ -99,7 +100,9 @@ function render(req) {
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
     `<g transform="translate(${tx} ${ty}) scale(${s})">${body}</g></svg>`;
-  const png = new Resvg(svg, { fitTo: { mode: "original" }, background: "rgba(0,0,0,0)", font: { loadSystemFonts: false } }).render().asPng();
+  const rendered = new Resvg(svg, { fitTo: { mode: "original" }, background: "rgba(0,0,0,0)", font: { loadSystemFonts: false } }).render();
+  const png = rendered.asPng();
+  const six = req.sixel ? encode(rendered.pixels, rendered.width, rendered.height) : null;
   // write a temp file next to `out`, then rename (atomic): a reader of `out` never sees
   // a partly written PNG, and two writers of the same path cannot interleave
   // (the cache directory may have been deleted since the request: :InkMath clear-cache)
@@ -108,6 +111,12 @@ function render(req) {
     mkdirSync(dirname(out), { recursive: true });
     writeFileSync(tmp, png);
     renameSync(tmp, out);
+    if (six !== null) {
+      // next to the PNG, same name with .six; written after it so a .six implies a valid PNG
+      const sixOut = out.replace(/\.png$/, "") + ".six";
+      writeFileSync(tmp, six);
+      renameSync(tmp, sixOut);
+    }
   } catch (e) {
     rmSync(tmp, { force: true });
     throw e;
