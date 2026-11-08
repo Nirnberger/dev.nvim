@@ -1115,4 +1115,38 @@ T["cases"]["edit with TS highlighter and conceal: view parsed before the redraw"
   eq(parser:is_valid(false, view), false)
 end
 
+-- the view parse is an optimisation on private highlighter API: when it throws (another
+-- Neovim version), the edit's refresh still comes
+T["cases"]["edit with TS highlighter and conceal: a failing view parse still refreshes"] = function()
+  local lines = {}
+  for i = 1, 200 do
+    lines[#lines + 1] = ("Para %d has $a_{%d}$ math."):format(i, i)
+  end
+  local buf = setup_buf(lines)
+  vim.treesitter.start(buf, "markdown")
+  local hl = vim.treesitter.highlighter.active[buf]
+  if not (hl and hl._conceal_line) then MiniTest.skip("highlighter without conceal_lines") end
+  core.attach(buf, { sync = true })
+  local tree = hl.tree
+  local refreshed = 0
+  local orig_refresh = core.refresh
+  core.refresh = function(...)
+    refreshed = refreshed + 1
+    return orig_refresh(...)
+  end
+  tree.parse = function() error("parse API changed") end -- instance field shadows the method
+  local ok, err = pcall(function()
+    for _, ev in ipairs({ "TextChanged", "TextChangedI" }) do
+      refreshed = 0
+      vim.api.nvim_buf_set_text(buf, 10, 0, 10, 0, { "x" })
+      vim.api.nvim_exec_autocmds(ev, { buffer = buf, modeline = false })
+      -- the debounced refresh (TextChangedI: after debounce_ms) runs
+      eq(vim.wait(5000, function() return refreshed > 0 end, 5), true)
+    end
+  end)
+  tree.parse = nil
+  core.refresh = orig_refresh
+  if not ok then error(err, 0) end
+end
+
 return T
