@@ -55,6 +55,25 @@ end
 ---@return string
 function M.delete_seq(id) return string.format("%s_Ga=d,d=I,i=%d,q=2%s", ESC, id, ST) end
 
+-- Backend interface (term/backend.lua): kitty/Ghostty draw Unicode placeholders.
+M.name = "kitty"
+M.mode = "placeholder"
+M.delete = function(id) return M.delete_seq(id) end
+
+---@param env? table
+---@return boolean
+function M.probe(env)
+  if env ~= nil and env ~= vim.env then
+    return env.TERM_PROGRAM == "ghostty"
+      or env.TERM_PROGRAM == "kitty"
+      or env.TERM == "xterm-kitty"
+      or env.TERM == "xterm-ghostty"
+      or (env.KITTY_WINDOW_ID or "") ~= ""
+      or (env.GHOSTTY_RESOURCES_DIR or "") ~= ""
+  end
+  return M.supported()
+end
+
 ---@return boolean
 function M.supported()
   local env = vim.env

@@ -135,10 +135,12 @@ function M.check()
     end
   end
 
-  local kitty = require("inkmath.term.kitty")
   local tmux = require("inkmath.term.tmux")
-  if kitty.supported() then
+  local backend, why = require("inkmath.term.backend").detect()
+  if backend then
     h.ok("terminal supports kitty graphics")
+  elseif why == "disabled by term.backend" then
+    h.error("terminal graphics disabled by term.backend = 'none'")
   else
     -- WezTerm and Konsole draw kitty graphics but not Unicode placeholders (the
     -- protocol inkmath uses), so they are not supported either

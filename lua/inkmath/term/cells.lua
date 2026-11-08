@@ -1,5 +1,5 @@
 local config = require("inkmath.config")
-local kitty = require("inkmath.term.kitty")
+local backend = require("inkmath.term.backend")
 local tmux = require("inkmath.term.tmux")
 
 local M = {}
@@ -52,7 +52,7 @@ local function from_csi()
       end
     end,
   })
-  kitty.send("\27[16t")
+  backend.current().send("\27[16t")
   vim.wait(200, function() return result ~= nil end, 10)
   pcall(vim.api.nvim_del_augroup_by_id, group)
   return result

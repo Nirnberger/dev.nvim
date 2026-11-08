@@ -25,6 +25,13 @@ end
 function M.placeholder_rows(id, cols, rows)
   local _ = id
   local out = {}
+  if require("inkmath.view.overlay").active() then
+    -- overlay backends paint the image themselves: just reserve the cells
+    for r = 1, rows do
+      out[r] = string.rep(" ", cols)
+    end
+    return out
+  end
   for r = 0, rows - 1 do
     local parts, rd = {}, dia(r + 1)
     for c = 0, cols - 1 do
@@ -47,12 +54,14 @@ function M.clear(buf, node_id)
     end
   end
   s.nodes[node_id] = nil
+  require("inkmath.view.overlay").repaint()
 end
 
 ---@param buf integer
 function M.clear_all(buf)
   if vim.api.nvim_buf_is_valid(buf) then vim.api.nvim_buf_clear_namespace(buf, M.ns, 0, -1) end
   state.get(buf).nodes = {}
+  require("inkmath.view.overlay").clear(buf)
 end
 
 ---@param buf integer
@@ -160,10 +169,17 @@ end
 function M.place(buf, node, img)
   local ok = pcall(function()
     if not vim.api.nvim_buf_is_valid(buf) or not in_bounds(buf, node) then return end
-    local id = images.ensure(img)
-    if not id then return end
-    images.touch(id)
-    local hl = images.hl(id)
+    local ov = require("inkmath.view.overlay")
+    local hl
+    if ov.active() then
+      ov.enable()
+      ov.repaint()
+    else
+      local id = images.ensure(img)
+      if not id then return end
+      images.touch(id)
+      hl = images.hl(id)
+    end
     local rows = M.placeholder_rows(id, img.cols, img.rows)
     local r = node.range
     local marks = {}

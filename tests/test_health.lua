@@ -258,4 +258,17 @@ T["health names WezTerm's missing Unicode placeholders"] = function()
   eq(#hit, 1)
 end
 
+T["health says graphics are disabled by term.backend = none"] = function()
+  local errors = {}
+  local saved_err = vim.health.error
+  c.setup({ term = { backend = "none" } })
+  vim.health.error = function(msg) errors[#errors + 1] = msg end
+  local ok, err = pcall(health.check)
+  vim.health.error = saved_err
+  c.setup({})
+  assert(ok, err)
+  eq(#vim.tbl_filter(function(m) return m:find("disabled by term.backend", 1, true) end, errors), 1)
+  eq(#vim.tbl_filter(function(m) return m:find("does not support kitty graphics", 1, true) end, errors), 0)
+end
+
 return T
