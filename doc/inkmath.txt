@@ -540,6 +540,51 @@ register_filetype({ft}, {spec})                  *inkmath.register_filetype()*
       ctx = "markdown",
     })
 <
+                                                       *inkmath-detectors*
+Custom detectors ~
+    A detector is a Lua module (named by `spec.detector`) with
+    `detect(buf, srow?, erow?)` returning `nodes, has_error`. Every node is
+    `{ id, kind, src, env?, range }`:
+      id     `require("inkmath.detect").node_id(kind, env, src)`
+      kind   "inline", "display" or "block"
+      src    the TeX source without delimiters
+      env    environment name, if any
+      range  `{ srow, scol, erow, ecol }`, 0-based, end exclusive
+    {spec.lang} is the treesitter language of the buffer (incremental
+    detection asks for its parser; a language without a parser is fine).
+    Example for reStructuredText `:math:` roles:
+>lua
+    -- lua/rst_math.lua
+    local M = {}
+
+    function M.detect(buf, srow, erow)
+      local nodes = {}
+      local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+      for row, line in ipairs(lines) do
+        local init = 1
+        while true do
+          local s, e, src = line:find(":math:`([^`]+)`", init)
+          if not s then break end
+          nodes[#nodes + 1] = {
+            id = require("inkmath.detect").node_id("inline", nil, src),
+            kind = "inline",
+            src = src,
+            range = { srow = row - 1, scol = s - 1, erow = row - 1, ecol = e },
+          }
+          init = e + 1
+        end
+      end
+      return nodes, false -- nodes, has_error
+    end
+
+    return M
+<
+>lua
+    require("inkmath").register_filetype("rst", {
+      lang = "rst",
+      detector = "rst_math",
+    })
+<
 ==============================================================================
 9. EVENTS                                                     *inkmath-events*
 

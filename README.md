@@ -117,6 +117,55 @@ In buffers they manage, a `'conceallevel'` 0 never sticks: use `:InkMath toggle`
   syntax then), and `:InkMath disable` reloads the syntax with your settings. To keep
   vimtex's math conceal, set `vimtex = { math_conceal = true }`.
 
+## Custom detectors
+
+`require("inkmath").register_filetype(ft, spec)` teaches inkmath another filetype and
+adds it to `filetypes`. `spec.detector` is the name of a Lua module whose
+`detect(buf, srow?, erow?)` returns `nodes, has_error`. Each node is
+`{ id, kind = "inline"|"display"|"block", src, env?, range }` with a 0-based,
+end-exclusive `range = { srow, scol, erow, ecol }` and `id` from
+`require("inkmath.detect").node_id(kind, env, src)`. `spec.lang` is the treesitter
+language of the buffer (used for incremental detection; a language without a
+parser is fine), and `spec.ctx` is `"tex"`, `"markdown"` or a function
+`fun(buf): { macros?, preamble? }` that supplies macros. Example for
+reStructuredText `:math:` roles:
+
+```lua
+-- lua/rst_math.lua
+local M = {}
+
+function M.detect(buf, srow, erow)
+  local nodes = {}
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  for row, line in ipairs(lines) do
+    local init = 1
+    while true do
+      local s, e, src = line:find(":math:`([^`]+)`", init)
+      if not s then break end
+      nodes[#nodes + 1] = {
+        id = require("inkmath.detect").node_id("inline", nil, src),
+        kind = "inline",
+        src = src,
+        range = { srow = row - 1, scol = s - 1, erow = row - 1, ecol = e },
+      }
+      init = e + 1
+    end
+  end
+  return nodes, false -- nodes, has_error
+end
+
+return M
+```
+
+```lua
+require("inkmath").register_filetype("rst", {
+  lang = "rst",
+  detector = "rst_math",
+})
+```
+
+Tested in `tests/test_registry.lua` ("documented custom detector").
+
 ## Commands
 
 `:InkMath enable|disable|toggle|refresh|clear-cache|build|status` act on the
