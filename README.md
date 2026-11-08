@@ -1,7 +1,8 @@
 # inkmath.nvim
 
 Renders LaTeX math in `tex`, `markdown`, `quarto` and `rmd` buffers as real images inside Neovim.
-Works in Ghostty and kitty, including through tmux. Inline math sits on the text
+Works in Ghostty and kitty (best), plus iTerm2, WezTerm, Konsole and Sixel terminals
+(see [Supported terminals](#supported-terminals)), including through tmux. Inline math sits on the text
 baseline, display math is centered, and the formula under the cursor shows its
 source with a live preview float while you type.
 
@@ -10,11 +11,31 @@ source with a live preview float while you type.
 - Neovim >= 0.12 with treesitter parsers `latex`, `markdown`, `markdown_inline`
 - `termguicolors` on: each image id is sent as the placeholder's 24-bit foreground
   color (inside tmux the client also needs the `RGB` terminal feature, see below)
-- Ghostty or kitty (>= 0.28); inside tmux: tmux >= 3.3 with `allow-passthrough on`
+- A graphics-capable terminal (table below); inside tmux: tmux >= 3.3 with `allow-passthrough on`
 - MathJax backend (default): node >= 18, `mathjax-full` and `@resvg/resvg-js`
   (installed by `:InkMath build`, which runs `npm ci` in `worker/`)
 - Tectonic backend / fallback: `tectonic`, ImageMagick (`magick`) with Ghostscript
 - Development: `mini.nvim` (mini.test), fetched into the dev data dir
+
+## Supported terminals
+
+`term.backend = "auto"` picks the first match; any value forces one (`"none"` shows no images).
+
+| Terminal | Backend | Mode | Notes |
+|---|---|---|---|
+| Ghostty, kitty | `kitty` | placeholder | reference implementation: images are text cells, scroll and split correctly |
+| WezTerm, Konsole | `kitty` | overlay | kitty graphics without Unicode placeholders |
+| iTerm2 | `iterm2` | overlay | OSC 1337 inline images |
+| foot, mlterm, xterm (`-ti vt340`), Windows Terminal | `sixel` | overlay | others that answer `4` to DA1 are found by a query at startup |
+| Alacritty, Apple Terminal, VS Code, Linux console | none | | no graphics protocol: a warning once, no images |
+
+Overlay mode paints images over reserved blank cells after each screen update. Known limits:
+images can flicker when text moves (iTerm2 and Sixel cannot delete single images; the screen is
+redrawn instead), floating windows and splits do not clip them, and scrolling is repainted
+rather than native. Sixel images are written to `<key>.six` next to the cached PNG; without
+one (tectonic renderer) `magick` converts on first paint. Inside tmux every backend needs
+`allow-passthrough on`. Overlay modes were only tested with synthetic output, not in the real
+terminals: see the checklist under Manual verification.
 
 ## Install
 
@@ -143,7 +164,9 @@ them against a stubbed terminal.
 
 ## Manual verification
 
-These need a real Ghostty/kitty window and have not been ticked off yet.
+These need a real Ghostty/kitty window and have not been ticked off yet. The overlay backends
+(iTerm2, WezTerm, Konsole, foot/Sixel) need the same run in the respective terminal: images appear
+at the right cells, move with scrolling, disappear with their formula, and do not leave stale pixels.
 
 ```sh
 ./dev/run.sh dev/samples/document.tex
@@ -191,7 +214,7 @@ In tmux (`--tmux`), repeat 1-12 and also:
 - Display width is taken from the first window showing the buffer.
 - The tectonic fallback relies on tectonic's unstable `-Z continue-on-errors` flag
   (checked by `:checkhealth inkmath`).
-- Typst, org and terminals other than Ghostty/kitty are not supported.
+- Typst, org and terminals without a graphics protocol (Alacritty, Apple Terminal, VS Code, the Linux console) are not supported.
 - An unclosed `$` or `{` in LaTeX source breaks the treesitter parse of the rest of
   the document. This is mitigated: while the parse has errors, the images already
   shown are kept (they move with the text) and nothing new is rendered or cleared;

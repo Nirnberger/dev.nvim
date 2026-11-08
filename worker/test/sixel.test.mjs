@@ -36,3 +36,48 @@ test("runs longer than three are run-length coded and bands separated by '-'", (
   const s = encode(img(10, 12, () => [0, 255, 0, 255]), 10, 12);
   assert.ok(s.includes("#0!10~-#0!10~"), s);
 });
+
+// Minimal Sixel decoder (spec: DCS params q, "raster, #colour defs, data, ! repeat, $ CR, - LF)
+// used to check the encoder end to end: pixels in == pixels out.
+function decode(s) {
+  const m = /^\x1bP[\d;]*q"1;1;(\d+);(\d+)([\s\S]*)\x1b\\$/.exec(s);
+  assert.ok(m, "DCS header");
+  const w = +m[1], h = +m[2];
+  const out = new Uint8Array(w * h * 4); // transparent
+  const pal = [];
+  let cur = 0, x = 0, band = 0, i = 0;
+  const body = m[3];
+  const put = (bits, n) => {
+    for (let r = 0; r < n; r++, x++)
+      for (let b = 0; b < 6; b++)
+        if (bits & (1 << b) && x < w && band * 6 + b < h) out.set([...pal[cur], 255], ((band * 6 + b) * w + x) * 4);
+  };
+  while (i < body.length) {
+    const c = body[i];
+    if (c === "#") {
+      const d = /^#(\d+)(?:;2;(\d+);(\d+);(\d+))?/.exec(body.slice(i));
+      cur = +d[1];
+      if (d[2] !== undefined) pal[cur] = [d[2], d[3], d[4]].map((v) => Math.round((+v * 255) / 100));
+      i += d[0].length;
+    } else if (c === "!") {
+      const d = /^!(\d+)(.)/.exec(body.slice(i));
+      put(d[2].charCodeAt(0) - 63, +d[1]);
+      i += d[0].length;
+    } else if (c === "$") { x = 0; i++; }
+    else if (c === "-") { x = 0; band++; i++; }
+    else { put(c.charCodeAt(0) - 63, 1); i++; }
+  }
+  return { w, h, px: out };
+}
+
+test("round trip: decoded pixels equal the input (transparency, bands, runs)", () => {
+  const w = 9, h = 14;
+  const px = img(w, h, (x, y) => {
+    if ((x + y) % 5 === 0) return [0, 0, 0, 0];
+    return x < 4 ? [255, 0, 0, 255] : y < 7 ? [0, 0, 255, 255] : [0, 255, 0, 255];
+  });
+  const back = decode(encode(px, w, h));
+  assert.equal(back.w, w);
+  assert.equal(back.h, h);
+  assert.deepEqual([...back.px], [...px]);
+});
