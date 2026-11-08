@@ -18,7 +18,7 @@ protocol (Unicode placeholders; Ghostty, kitty, through tmux). Lua plugin + Node
 - `cd worker && npm ci` once; `:InkMath build` does the same for users.
 
 ## Test env
-- Needs on PATH: nvim >= 0.11, node >= 18, `tree-sitter` CLI + C compiler (parsers), `tectonic`, `magick` (IM7).
+- Needs on PATH: nvim >= 0.12, node >= 18, `tree-sitter` CLI + C compiler (parsers), `tectonic`, `magick` (IM7).
   Binaries I download go to `~/.local/bin`.
 - Tectonic tests skip themselves without tectonic/magick (`helpers.need_tectonic()`).
 - Tests set a temp `XDG_CACHE_HOME`; `minit.lua` keeps tectonic's bundle cache on the real path
