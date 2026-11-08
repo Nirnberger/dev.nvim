@@ -3,6 +3,8 @@
 -- Env: BENCH_ONLY=worker,tex1000,tex5000,md2000,md2000nohl,scroll,warmup  (comma list; default all)
 --      BENCH_WORKERS=n  pool size for the open/scroll benchmarks; BENCH_PROFILE=1  time refresh parts
 --      BENCH_JSON=path  also write the results as JSON
+--      with BENCH_PROFILE: BENCH_DBG=hl  also time the TS highlighter's decoration callbacks,
+--      BENCH_DBG=parse  log every LanguageTree:parse (range, duration, caller) to stderr
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 vim.env.XDG_CACHE_HOME = vim.fn.tempname() -- empty render cache (stdpath("cache") follows)
 package.path = root .. "/?.lua;" .. package.path
@@ -85,6 +87,43 @@ if vim.env.BENCH_PROFILE then
   wrap(require("inkmath.detect.precheck"), "triggers", "precheck.triggers")
   local LT = getmetatable(vim.treesitter.get_string_parser("x", "markdown")).__index
   wrap(LT, "parse", "LanguageTree:parse (any caller)")
+  if vim.env.BENCH_DBG == "hl" then
+    local H = require("vim.treesitter.highlighter")
+    local function tw(f, label)
+      return function(...)
+        local t = now()
+        local r = { f(...) }
+        prof[label] = (prof[label] or 0) + now() - t
+        return unpack(r)
+      end
+    end
+    vim.api.nvim_set_decoration_provider(vim.api.nvim_create_namespace("nvim.treesitter.highlighter"), {
+      on_win = tw(H._on_win, "hl on_win"),
+      on_start = tw(H._on_start, "hl on_start"),
+      on_range = tw(H._on_range, "hl on_range"),
+      _on_spell_nav = H._on_spell_nav,
+      _on_conceal_line = tw(H._on_conceal_line, "hl on_conceal_line"),
+    })
+  end
+  if vim.env.BENCH_DBG == "parse" then
+    local p = LT.parse
+    LT.parse = function(self, range, cb)
+      local t = now()
+      local r = { p(self, range, cb) }
+      local i = debug.getinfo(3, "Sl") or {}
+      io.stderr:write(
+        ("      parse %s %s cb=%s %.1f ms from %s:%s\n"):format(
+          self:lang(),
+          vim.inspect(range):gsub("%s+", ""),
+          tostring(cb ~= nil),
+          now() - t,
+          (i.short_src or "?"):gsub(".*/", ""),
+          tostring(i.currentline)
+        )
+      )
+      return unpack(r)
+    end
+  end
   wrap(require("inkmath.ctx"), "build", "ctx.build")
   wrap(require("inkmath.labels"), "apply", "labels.apply")
   wrap(images, "evict", "images.evict")
@@ -239,6 +278,14 @@ local function wait_idle()
 end
 
 local function redraw() vim.cmd("redraw") end
+
+--- the TextChanged autocmds a keystroke in normal mode fires before its redraw (inkmath's
+--- handlers among them); returns their main-thread time
+local function textchanged(buf)
+  local t = now()
+  vim.api.nvim_exec_autocmds("TextChanged", { buffer = buf, modeline = false })
+  return now() - t
+end
 
 local function timed_refresh(buf)
   local t = now()
@@ -405,7 +452,10 @@ local function bench_open(name, lines, ft)
   local sj = stats(tj)
   record(name .. ": after fill: jump far, visible placed median/max (ms)", { sj.median, sj.max })
   wait_idle()
-  config.setup({ fill = { enabled = false } }) -- the keystroke numbers below: no fill in between
+  -- the keystroke numbers below: no fill in between; each keystroke fires TextChanged
+  -- before its redraw, as Neovim does, but the bench calls (and times) the refresh
+  -- itself: the debounced one TextChanged schedules never comes (restarted each time)
+  config.setup({ fill = { enabled = false }, debounce_ms = 1e6 })
 
   -- (b) keystrokes in the middle: prose edit (no render) and formula edit (one render)
   local mid = math.floor(#lines / 2)
@@ -424,19 +474,20 @@ local function bench_open(name, lines, ft)
   local incr = require("inkmath.detect.incr")
   local parser = vim.treesitter.get_parser(buf)
   local hl = vim.treesitter.highlighter.active[buf] ~= nil
-  -- with the treesitter highlighter on, its parse runs during the refresh debounce
-  -- (after the redraw that follows a keystroke): it is the highlighter's work, done
-  -- with or without inkmath, so it happens before the clock starts
+  -- with the treesitter highlighter on, its parse runs in the redraw that follows a
+  -- keystroke (synchronously, once per row, with 'conceallevel' > 0 and markdown's
+  -- conceal_lines query): before the prose refresh, inside the clock for formula edits
   local function settle()
     if not hl then return end
     redraw()
     vim.wait(200, function() return parser:is_valid(true) end, 1)
   end
-  local tp, tm, tl = {}, {}, {}
+  local tp, tm, tl, tc, tr, npend = {}, {}, {}, {}, {}, 0
   prof = {}
   local skip0 = incr.stats.skip
   for i = 1, 30 do
     vim.api.nvim_buf_set_text(buf, prose - 1, 0, prose - 1, 0, { "x" })
+    textchanged(buf)
     settle()
     tp[#tp + 1] = timed_refresh(buf)
     vim.wait(0) -- let a pending parse finish (as the next keystroke would)
@@ -451,8 +502,13 @@ local function bench_open(name, lines, ft)
     vim.api.nvim_buf_set_text(buf, math_row - 1, c, math_row - 1, c, { "y" })
     local src = vim.api.nvim_buf_get_lines(buf, math_row - 1, math_row, false)[1]:match("%$(.-)%$")
     local t0 = now()
+    tc[#tc + 1] = textchanged(buf)
+    local t1 = now()
     settle()
+    tr[#tr + 1] = now() - t1
+    local pend0 = incr.stats.pending
     tm[#tm + 1] = timed_refresh(buf)
+    npend = npend + incr.stats.pending - pend0
     -- keystroke -> the edited formula placed: the async parse (or the highlighter's),
     -- the refresh it triggers and the render
     local ok = vim.wait(10000, function()
@@ -480,6 +536,10 @@ local function bench_open(name, lines, ft)
     )
   end
   record(name .. ": keystroke -> formula placed median/p95 (ms)", { sl.median, sl.p95 })
+  local sc, sr = stats(tc), stats(tr)
+  record(name .. ": formula keystroke, TextChanged handlers (sync) median/p95 (ms)", { sc.median, sc.p95 })
+  record(name .. ": formula keystroke, redraw + highlighter parse median/p95 (ms)", { sr.median, sr.p95 })
+  record(name .. ": formula keystroke, refreshes waiting for a parse", npend)
   record(name .. ": prose keystroke precheck skip ratio", skip_ratio)
   -- breakdown: full-buffer detection alone
   local td = {}
