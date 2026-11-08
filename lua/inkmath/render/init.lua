@@ -51,6 +51,7 @@ local function mathjax_render(node, ctx, key, cb, retried)
     baseline = cfg.inline.baseline,
     scale = cfg.scale,
     out = cache.path(key),
+    sixel = (require("inkmath.term.backend").get() or {}).name == "sixel" or nil,
   }, function(res, err)
     if res then
       local ok, img = pcall(cache.put, key, res.cols, res.rows, res.ratio)

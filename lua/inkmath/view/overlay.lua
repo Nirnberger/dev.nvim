@@ -10,6 +10,18 @@ local M = {}
 local painted = {} ---@type table<string, {id: integer, buf: integer, row: integer, col: integer}>
 local scheduled = false
 local group ---@type integer?
+local own_ids, next_own = {}, 0 ---@type table<string, integer>, integer ids for backends that need no transmit
+
+--- Id of an image for painting: the kitty id when the backend transmits (needs the image resident),
+--- otherwise a private counter (iTerm2, Sixel send the pixels with every paint).
+local function id_for(b, img)
+  if b.transmit ~= false then return images.id(img.key) or images.ensure(img) end
+  if not own_ids[img.key] then
+    next_own = next_own + 1
+    own_ids[img.key] = next_own
+  end
+  return own_ids[img.key]
+end
 
 ---@return inkmath.Backend|nil b the active backend when it paints at cells
 function M.active()
@@ -63,16 +75,19 @@ local function paint_now()
   for key, p in pairs(painted) do
     if dirty[p.id] then painted[key] = nil end
   end
+  -- backends that cannot delete single images redraw the screen once, which wipes every
+  -- image: all of them are painted again after it
+  if b.flush and b.flush() then painted = {} end
   for key, w in pairs(want) do
     if not painted[key] then
-      local id = images.id(w.img.key) or images.ensure(w.img)
+      local id = id_for(b, w.img)
       if id then
-        for _, seq in
-          ipairs(b.paint({ path = w.img.path, cols = w.img.cols, rows = w.img.rows, id = id }, w.row, w.col))
-        do
+        local seqs = b.paint({ path = w.img.path, cols = w.img.cols, rows = w.img.rows, id = id }, w.row, w.col)
+        for _, seq in ipairs(seqs) do
           b.send(seq)
         end
-        painted[key] = { id = id, buf = w.buf, row = w.row, col = w.col }
+        -- nothing to paint yet (file missing, being converted): try again on the next repaint
+        if #seqs > 0 then painted[key] = { id = id, buf = w.buf, row = w.row, col = w.col } end
       end
     end
   end
@@ -97,6 +112,7 @@ function M.clear(buf)
       painted[key] = nil
     end
   end
+  if b and b.flush then b.flush() end
 end
 
 --- Autocmds that keep the paint in sync; idempotent.

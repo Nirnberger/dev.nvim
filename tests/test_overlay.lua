@@ -137,4 +137,56 @@ T["clear(buf) deletes the buffer's images and wipeout clears"] = function()
   eq(count("del"), 1)
 end
 
+T["backend without transmit never touches kitty images"] = function()
+  fake.transmit = false
+  local called = false
+  images.ensure = function()
+    called = true
+    return 7
+  end
+  local buf = setup({ "a $x$ b" })
+  place(buf, "n1", 0)
+  overlay.repaint()
+  flush()
+  eq(called, false)
+  eq(count("paint"), 1)
+end
+
+T["flush that redrew makes every image paint again"] = function()
+  fake.transmit = false
+  local redrew = false
+  fake.flush = function()
+    local r = redrew
+    redrew = false
+    return r
+  end
+  local buf = setup({ "a $x$ b", "c $y$ d" })
+  place(buf, "n1", 0)
+  place(buf, "n2", 1)
+  overlay.repaint()
+  flush()
+  eq(count("paint"), 2)
+  vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "new line" }) -- n1 and n2 move down one row
+  redrew = true
+  overlay.repaint()
+  flush()
+  eq(count("del") >= 1, true)
+  eq(count("paint"), 4) -- both painted again after the redraw
+end
+
+T["an empty paint is retried on the next repaint"] = function()
+  fake.transmit = false
+  local ready = false
+  fake.paint = function(img, row, col) return ready and { ("paint%d@%d,%d"):format(img.id, row, col) } or {} end
+  local buf = setup({ "a $x$ b" })
+  place(buf, "n1", 0)
+  overlay.repaint()
+  flush()
+  eq(count("paint"), 0)
+  ready = true
+  overlay.repaint()
+  flush()
+  eq(count("paint"), 1)
+end
+
 return T

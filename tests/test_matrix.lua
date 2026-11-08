@@ -6,7 +6,17 @@ local eq = MiniTest.expect.equality
 local tmux = require("inkmath.term.tmux")
 local kitty = require("inkmath.term.kitty")
 
-local VARS = { "TERM", "TERM_PROGRAM", "KITTY_WINDOW_ID", "GHOSTTY_RESOURCES_DIR", "TMUX", "TMUX_PANE" }
+local VARS = {
+  "TERM",
+  "TERM_PROGRAM",
+  "KITTY_WINDOW_ID",
+  "GHOSTTY_RESOURCES_DIR",
+  "TMUX",
+  "TMUX_PANE",
+  "LC_TERMINAL",
+  "KONSOLE_VERSION",
+  "WT_SESSION",
+}
 
 --- Run fn with exactly `env` set for the terminal-detection variables.
 local function with_env(env, fn)
@@ -48,6 +58,49 @@ for _, case in ipairs(TERMINALS) do
   local name, env, want = case[1], case[2], case[3]
   T["supported: " .. name] = function()
     eq(with_env(env, function() return kitty.supported() end), want)
+  end
+end
+
+-- Backend per terminal ---------------------------------------------------------------------
+
+local backend = require("inkmath.term.backend")
+
+local BACKENDS = {
+  { "ghostty", { TERM = "xterm-ghostty", TERM_PROGRAM = "ghostty" }, "kitty", "placeholder" },
+  { "kitty", { TERM = "xterm-kitty" }, "kitty", "placeholder" },
+  { "WezTerm", { TERM = "xterm-256color", TERM_PROGRAM = "WezTerm" }, "kitty", "overlay" },
+  { "Konsole", { TERM = "xterm-256color", KONSOLE_VERSION = "230800" }, "kitty", "overlay" },
+  { "iTerm2", { TERM = "xterm-256color", TERM_PROGRAM = "iTerm.app" }, "iterm2", "overlay" },
+  { "iTerm2 over ssh", { TERM = "xterm-256color", LC_TERMINAL = "iTerm2" }, "iterm2", "overlay" },
+  { "foot", { TERM = "foot" }, "sixel", "overlay" },
+  { "mlterm", { TERM = "mlterm" }, "sixel", "overlay" },
+  { "Windows Terminal", { TERM = "xterm-256color", WT_SESSION = "1" }, "sixel", "overlay" },
+  { "alacritty", { TERM = "alacritty" }, nil, nil },
+  { "Apple Terminal", { TERM = "xterm-256color", TERM_PROGRAM = "Apple_Terminal" }, nil, nil },
+  { "linux console", { TERM = "linux" }, nil, nil },
+}
+
+for _, case in ipairs(BACKENDS) do
+  local name, env, want_name, want_mode = case[1], case[2], case[3], case[4]
+  T["backend: " .. name] = function()
+    require("inkmath.config").setup({})
+    local b = backend.detect(env)
+    eq(b and b.name, want_name)
+    eq(b and b.mode, want_mode)
+  end
+
+  -- inside tmux the terminal is only usable with allow-passthrough
+  T["env.check in tmux: " .. name] = function()
+    local e = vim.tbl_extend("force", env, { TMUX = "/tmp/x,1,0", TMUX_PANE = "%0" })
+    local saved = tmux.passthrough_enabled
+    local res = {}
+    for _, pass in ipairs({ false, true }) do
+      tmux.passthrough_enabled = function() return pass end
+      res[#res + 1] = with_env(e, function() return require("inkmath.env").check() ~= nil end)
+    end
+    tmux.passthrough_enabled = saved
+    eq(res[1], false) -- never without passthrough (and never for alacritty)
+    if want_name == nil then eq(res[2], false) end
   end
 end
 

@@ -172,3 +172,16 @@ test("writes into a directory deleted meanwhile", async () => {
   assert.equal(r.ok, true, r.error);
   assert.equal(png(join(sub, "y.png")).width, r.cols * 10);
 });
+
+test("sixel output next to the PNG when requested", async () => {
+  const { r, out } = await req({ tex: "x", sixel: true });
+  assert.equal(r.ok, true);
+  const six = readFileSync(out.replace(/\.png$/, ".six"), "utf8");
+  assert.ok(six.startsWith("\x1bP0;1;q"));
+  assert.ok(six.endsWith("\x1b\\"));
+});
+
+test("no .six without the sixel flag", async () => {
+  const { out } = await req({ tex: "y" });
+  assert.equal(readdirSync(dir).includes(out.split("/").pop().replace(/\.png$/, ".six")), false);
+});
