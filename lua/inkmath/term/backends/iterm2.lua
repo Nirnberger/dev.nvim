@@ -21,14 +21,17 @@ end
 --- No per-image delete in OSC 1337: stale pixels vanish when Neovim repaints the cells.
 ---@return string
 function M.delete()
-  if not redraw_pending then
-    redraw_pending = true
-    vim.schedule(function()
-      redraw_pending = false
-      pcall(vim.cmd, "redraw!")
-    end)
-  end
+  redraw_pending = true
   return ""
+end
+
+--- Called by the overlay between deleting and painting: one `:redraw!` for all deletions.
+---@return boolean redrew every image on screen is gone now
+function M.flush()
+  if not redraw_pending then return false end
+  redraw_pending = false
+  pcall(vim.cmd, "redraw!")
+  return true
 end
 
 ---@param img {path: string, cols: integer, rows: integer, id: integer}

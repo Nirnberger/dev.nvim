@@ -75,16 +75,19 @@ local function paint_now()
   for key, p in pairs(painted) do
     if dirty[p.id] then painted[key] = nil end
   end
+  -- backends that cannot delete single images redraw the screen once, which wipes every
+  -- image: all of them are painted again after it
+  if b.flush and b.flush() then painted = {} end
   for key, w in pairs(want) do
     if not painted[key] then
       local id = id_for(b, w.img)
       if id then
-        for _, seq in
-          ipairs(b.paint({ path = w.img.path, cols = w.img.cols, rows = w.img.rows, id = id }, w.row, w.col))
-        do
+        local seqs = b.paint({ path = w.img.path, cols = w.img.cols, rows = w.img.rows, id = id }, w.row, w.col)
+        for _, seq in ipairs(seqs) do
           b.send(seq)
         end
-        painted[key] = { id = id, buf = w.buf, row = w.row, col = w.col }
+        -- nothing to paint yet (file missing, being converted): try again on the next repaint
+        if #seqs > 0 then painted[key] = { id = id, buf = w.buf, row = w.row, col = w.col } end
       end
     end
   end
@@ -109,6 +112,7 @@ function M.clear(buf)
       painted[key] = nil
     end
   end
+  if b and b.flush then b.flush() end
 end
 
 --- Autocmds that keep the paint in sync; idempotent.

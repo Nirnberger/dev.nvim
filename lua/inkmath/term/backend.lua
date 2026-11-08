@@ -1,6 +1,7 @@
 --- Picks the terminal graphics backend (see docs/superpowers/specs/2026-11-08-terminal-backends-design.md).
 ---@class inkmath.Backend
 ---@field name "kitty"|"iterm2"|"sixel"
+---@field flush? fun(): boolean called by the overlay after deleting, before painting; true: the screen was redrawn and every image is gone
 ---@field transmit? boolean false: the backend sends pixels with each paint (no resident kitty image)
 ---@field mode "placeholder"|"overlay" placeholder: the image is text cells (kitty); overlay: painted at screen cells
 ---@field send fun(seq: string)

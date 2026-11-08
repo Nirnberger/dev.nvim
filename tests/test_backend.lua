@@ -114,7 +114,7 @@ T["sixel paint sends the .six file at the cell"] = function()
   eq(out, "\0277\27[3;4H\27Pq#0~\27\\\0278")
 end
 
-T["sixel paint without .six and without magick is empty"] = function()
+T["sixel paint without .six is empty and never blocks"] = function()
   local b = backend.detect({ TERM = "foot" })
   local old = vim.fn.executable
   vim.fn.executable = function() return 0 end

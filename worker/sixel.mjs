@@ -1,4 +1,4 @@
-// RGBA -> Sixel. Opaque pixels only (alpha < 128 stays unset, P2 = 1 keeps the terminal
+// RGBA (premultiplied, as resvg renders it) -> Sixel. Opaque pixels only (alpha < 128 stays unset, P2 = 1 keeps the terminal
 // background there). At most 256 colours: exact when the image has that few, else a 6x6x6 cube.
 
 const MAX_COLORS = 256;
@@ -37,7 +37,10 @@ export function encode(rgba, width, height) {
   const distinct = new Set();
   for (let p = 0; p < width * height; p++) {
     if (rgba[p * 4 + 3] < 128) continue;
-    const k = (rgba[p * 4] << 16) | (rgba[p * 4 + 1] << 8) | rgba[p * 4 + 2];
+    // resvg hands out premultiplied RGBA: undo it so edge pixels keep their colour
+    const a = rgba[p * 4 + 3];
+    const un = (v) => Math.min(255, Math.round((v * 255) / a));
+    const k = (un(rgba[p * 4]) << 16) | (un(rgba[p * 4 + 1]) << 8) | un(rgba[p * 4 + 2]);
     keys[p] = 0x1000000 | k;
     distinct.add(k);
   }
@@ -70,5 +73,7 @@ export function encode(rgba, width, height) {
     }
     bands.push([...rows].map(([c, r]) => `#${c}${rle(r)}`).join("$"));
   }
-  return head + defs + bands.filter((b) => b).join("-") + "\x1b\\";
+  // empty bands in the middle still need their '-' (graphics newline); only trailing ones go
+  while (bands.length && !bands[bands.length - 1]) bands.pop();
+  return head + defs + bands.join("-") + "\x1b\\";
 }

@@ -37,6 +37,17 @@ test("runs longer than three are run-length coded and bands separated by '-'", (
   assert.ok(s.includes("#0!10~-#0!10~"), s);
 });
 
+test("a blank band in the middle keeps the rows below in place", () => {
+  const w = 2, h = 13;
+  const px = img(w, h, (x, y) => (y === 12 ? [0, 0, 0, 255] : [0, 0, 0, 0]));
+  assert.deepEqual([...decode(encode(px, w, h)).px], [...px]);
+});
+
+test("premultiplied input is un-premultiplied", () => {
+  const s = encode(img(1, 1, () => [153, 0, 0, 153]), 1, 1);
+  assert.ok(s.includes("#0;2;100;0;0"), s);
+});
+
 // Minimal Sixel decoder (spec: DCS params q, "raster, #colour defs, data, ! repeat, $ CR, - LF)
 // used to check the encoder end to end: pixels in == pixels out.
 function decode(s) {

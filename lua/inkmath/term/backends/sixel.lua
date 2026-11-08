@@ -15,14 +15,17 @@ local redraw_pending = false
 --- Sixel cannot be deleted either: repaint the cells (see iterm2.lua).
 ---@return string
 function M.delete()
-  if not redraw_pending then
-    redraw_pending = true
-    vim.schedule(function()
-      redraw_pending = false
-      pcall(vim.cmd, "redraw!")
-    end)
-  end
+  redraw_pending = true
   return ""
+end
+
+--- Called by the overlay between deleting and painting: one `:redraw!` for all deletions.
+---@return boolean redrew every image on screen is gone now
+function M.flush()
+  if not redraw_pending then return false end
+  redraw_pending = false
+  pcall(vim.cmd, "redraw!")
+  return true
 end
 
 --- Does a primary device attributes reply (`CSI ? 62 ; 4 ; c`) list attribute 4 (Sixel)?
@@ -39,7 +42,9 @@ end
 
 --- Ask the terminal (DA1), wait at most 200 ms. Memoized by backend.get() through detect().
 ---@return boolean
+local da1 ---@type boolean|nil memoized for the session: a reset must not cost 200 ms again
 local function query_da1()
+  if da1 ~= nil then return da1 end
   if #vim.api.nvim_list_uis() == 0 then return false end
   local answered, sixel = false, false
   local group = vim.api.nvim_create_augroup("inkmath_da1", { clear = true })
@@ -56,6 +61,7 @@ local function query_da1()
   kitty.send("\27[c")
   vim.wait(200, function() return answered end, 10)
   pcall(vim.api.nvim_del_augroup_by_id, group)
+  if answered then da1 = sixel end -- no answer may just be slowness (ssh): ask again next time
   return sixel
 end
 
@@ -76,11 +82,25 @@ end
 ---@return string|nil
 local function six_path(path) return (path:gsub("%.png$", "") .. ".six") end
 
---- `.six` for images the worker did not encode (cache entries from before, tectonic fallback).
+local converting = {} ---@type table<string, true>
+
+--- `.six` for images the worker did not encode (cache entries from before, tectonic fallback):
+--- magick runs in the background and the overlay repaints when the file is there.
 local function convert(png, six)
-  if vim.fn.executable("magick") ~= 1 then return false end
-  local r = vim.system({ "magick", png, "-background", "none", "sixel:" .. six }, {}):wait(5000)
-  return r.code == 0
+  if converting[six] or vim.fn.executable("magick") ~= 1 then return end
+  converting[six] = true
+  local tmp = ("%s.tmp.%d.six"):format(six:gsub("%.six$", ""), vim.uv.os_getpid())
+  vim.system({ "magick", png, "-background", "none", "sixel:" .. tmp }, {}, function(r)
+    if r.code == 0 then
+      os.rename(tmp, six)
+    else
+      os.remove(tmp)
+    end
+    vim.schedule(function()
+      converting[six] = nil
+      require("inkmath.view.overlay").repaint()
+    end)
+  end)
 end
 
 ---@param img {path: string, cols: integer, rows: integer, id: integer}
@@ -89,7 +109,10 @@ end
 ---@return string[]
 function M.paint(img, row, col)
   local six = six_path(img.path)
-  if not vim.uv.fs_stat(six) and not convert(img.path, six) then return {} end
+  if not vim.uv.fs_stat(six) then
+    convert(img.path, six)
+    return {}
+  end
   local f = io.open(six, "rb")
   if not f then return {} end
   local data = f:read("*a")
