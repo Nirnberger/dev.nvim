@@ -72,3 +72,290 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/ci-tools.sh lint
       - run: stylua --check .
+
+  # Screenshots of inkmath in real terminals (kitty, kitty + tmux) for every sample in dev/samples.
+  screenshots:
+    name: screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: neovim, tree-sitter, tectonic, imagemagick, kitty, tmux
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/ci-tools.sh stable
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/tectonic
+          key: tectonic-ubuntu-latest-${{ hashFiles('scripts/ci-tools.sh') }}
+          restore-keys: tectonic-ubuntu-latest-
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.local/share/inkmath-dev
+          key: deps-ubuntu-latest-stable-${{ hashFiles('tests/minit.lua') }}
+      - name: worker deps
+        run: cd worker && npm ci
+      - name: screenshots
+        env:
+          INKMATH_REQUIRE_TMUX: 1
+        run: bash scripts/screenshots.sh shots
+      - uses: actions/upload-artifact@v7
+        with:
+          name: inkmath-shots
+          path: shots/*.png
+          if-no-files-found: error
+          retention-days: 14
+
+  # Publishes the screenshots on the branch `pr-previews` (rebuilt as ONE commit each run: main/ is
+  # the baseline, pr-<n>/ the newest images of each open PR) and keeps one PR comment up to date
+  # (before | after per sample and variant, pixel diff as a hint). Has write access, so it checks
+  # out nothing and runs no code from the repository: the artifact is data (names checked, images
+  # re-encoded). Fork PRs are skipped. Never fails the run: problems become a ::warning::.
+  preview:
+    name: preview
+    needs: screenshots
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: preview-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EVENT: ${{ github.event_name }}
+      PR: ${{ github.event.pull_request.number }}
+      SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      FUZZ: "2%"
+      DIFF_PIXELS: "20"
+    steps:
+      - name: get screenshots
+        id: get
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: inkmath-shots
+          path: shots
+      - name: compare, publish, comment
+        if: steps.get.outcome == 'success'
+        run: |
+          cat > "$RUNNER_TEMP/preview.sh" <<'SCRIPT'
+          set -euo pipefail
+          shopt -s nullglob
+          short="${SHA:0:7}"
+
+          # ImageMagick: IM7 `magick`, else IM6 from apt (usually ~20 s, sometimes hangs: time-limited)
+          install_im() {
+            sudo rm -f /var/lib/man-db/auto-update
+            local a
+            for a in 1 2; do
+              timeout 90 sudo apt-get update -qq -o Acquire::Retries=2 &&
+                timeout 90 sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l \
+                  apt-get install -y -qq --no-install-recommends -o DPkg::Lock::Timeout=30 imagemagick &&
+                return 0
+              echo "apt attempt $a failed or timed out" >&2
+            done
+            return 1
+          }
+          if command -v magick >/dev/null; then
+            im_convert() { magick "$@"; }
+            im_compare() { magick compare "$@"; }
+          else
+            command -v compare >/dev/null || install_im >/dev/null || { echo "ImageMagick not installed in time" >&2; exit 1; }
+            im_convert() { convert "$@"; }
+            im_compare() { compare "$@"; }
+          fi
+
+          # 1. The artifact is data: expected names only, at most 40 files of 2 MB, re-encoded as PNG.
+          proc="$RUNNER_TEMP/proc"
+          mkdir -p "$proc"
+          name_re='^[A-Za-z0-9_.]+(-[A-Za-z0-9_.]+)*--[a-z0-9]+(-[a-z0-9]+)*\.png$'
+          for f in shots/*.png; do
+            n="$(basename "$f")"
+            [[ "$n" =~ $name_re ]] || { echo "skipping an unexpected file name"; continue; }
+            [ "$(stat -c %s "$f")" -le 2000000 ] || { echo "skipping $n: over 2 MB"; continue; }
+            im_convert "png:$f" -strip "png:$proc/$n" || echo "skipping $n: not a PNG"
+          done
+          shots=("$proc"/*.png)
+          [ "${#shots[@]}" -gt 0 ] || { echo "no screenshots, nothing to do"; exit 0; }
+          [ "${#shots[@]}" -le 40 ] || { echo "more than 40 screenshots" >&2; exit 1; }
+
+          # 2. The branch pr-previews, rebuilt as one commit; `publish` sets $published to its SHA.
+          work="$(mktemp -d)"
+          cd "$work"
+          git init -q
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          checkout_previews() {
+            if git fetch -q origin pr-previews 2>/dev/null; then
+              git checkout -q -f FETCH_HEAD
+              git clean -qfdx
+              lease="$(git rev-parse FETCH_HEAD)"
+            else
+              git checkout -q -f --orphan pr-previews
+              git rm -rqf --ignore-unmatch . >/dev/null
+              git clean -qfdx
+              lease=""
+            fi
+          }
+          open_prs="$(gh api --paginate "repos/${REPO}/pulls?state=open&per_page=100" --jq '.[].number' || echo ERROR)"
+          edit_tree() { # $1: main | pr-<n>
+            rm -rf "$1"
+            mkdir -p "$1"
+            cp "${shots[@]}" "$1/"
+            echo "$SHA" >"$1/SHA"
+            local d
+            [ "$open_prs" != ERROR ] || return 0 # keep everything when the PR list is unknown
+            for d in pr-*; do
+              [ -d "$d" ] && [ "$d" != "$1" ] || continue
+              grep -qx "${d#pr-}" <<<"$open_prs" || rm -rf "$d"
+            done
+          }
+          publish() { # <dir> <message>
+            local commit
+            checkout_previews
+            edit_tree "$1"
+            git add -A
+            commit="$(git commit-tree "$(git write-tree)" -m "$2")"
+            git push -q --force-with-lease="pr-previews:${lease}" origin "${commit}:refs/heads/pr-previews" || return 1
+            published="$commit"
+          }
+          publish_retry() {
+            local a
+            for a in 1 2 3; do
+              publish "$@" && return 0
+              echo "push raced with another run, retrying"
+              sleep $((a * 3))
+            done
+            return 1
+          }
+
+          if [ "$EVENT" != pull_request ]; then
+            publish_retry main "baseline: main @ ${short}"
+            echo "baseline updated: ${#shots[@]} images"
+            exit 0
+          fi
+
+          # 3. Pull request: compare with the baseline (a hint only, never a failure).
+          checkout_previews
+          have_base=false
+          base_sha=""
+          if [ -d main ]; then
+            have_base=true
+            base_sha="$(head -c 7 main/SHA 2>/dev/null || true)"
+          fi
+          declare -A status px
+          for p in "${shots[@]}"; do
+            n="$(basename "$p")"
+            if [ "$have_base" = false ]; then
+              status[$n]=after
+            elif [ -f "main/$n" ]; then
+              out="$(im_compare -metric AE -fuzz "$FUZZ" "main/$n" "$p" null: 2>&1 || true)"
+              v="$(awk 'NR == 1 && $1 ~ /^[0-9.e+]+$/ { printf "%d", $1 }' <<<"$out")"
+              if [ -n "$v" ] && [ "$v" -le "$DIFF_PIXELS" ]; then
+                status[$n]=same
+              else
+                status[$n]=changed
+                px[$n]="${v:-size}"
+              fi
+            else
+              status[$n]=new
+            fi
+          done
+          if [ "$have_base" = true ]; then
+            for b in main/*.png; do
+              n="$(basename "$b")"
+              [ -n "${status[$n]:-}" ] || status[$n]=gone
+            done
+          fi
+          publish_retry "pr-${PR}" "previews: PR ${PR} @ ${short}"
+
+          # 4. One comment, found by its marker and updated on every run.
+          raw="https://raw.githubusercontent.com/${REPO}/${published}"
+          mapfile -t samples < <(printf '%s\n' "${!status[@]}" | sed 's/--.*//' | sort -u)
+          mapfile -t variants < <(printf '%s\n' "${!status[@]}" | sed 's/.*--//; s/\.png$//' | sort -u)
+          img() { echo "<img src=\"${raw}/$1\" width=\"200\">"; }
+          cell() { # <sample> <variant>
+            local n="$1--$2.png"
+            case "${status[$n]:-}" in
+              same) echo "$(img "main/$n") $(img "pr-${PR}/$n")" ;;
+              changed) echo "**changed** (${px[$n]} px)<br>$(img "main/$n") $(img "pr-${PR}/$n")" ;;
+              new) echo "**new**<br>$(img "pr-${PR}/$n")" ;;
+              gone) echo "**missing in this PR**<br>$(img "main/$n")" ;;
+              after) img "pr-${PR}/$n" ;;
+              *) echo "–" ;;
+            esac
+          }
+          table() { # <sample>...
+            local s v row
+            printf '| Sample |'
+            printf ' %s |' "${variants[@]}"
+            printf '\n|---|'
+            printf -- '---|%.0s' "${variants[@]}"
+            printf '\n'
+            for s in "$@"; do
+              row="| \`$s\` |"
+              for v in "${variants[@]}"; do row+=" $(cell "$s" "$v") |"; done
+              echo "$row"
+            done
+          }
+          changed=()
+          unchanged=()
+          nchanged=0
+          for s in "${samples[@]}"; do
+            diff=false
+            for v in "${variants[@]}"; do
+              case "${status[$s--$v.png]:-}" in changed | new | gone) diff=true nchanged=$((nchanged + 1)) ;; esac
+            done
+            if [ "$diff" = true ]; then changed+=("$s"); else unchanged+=("$s"); fi
+          done
+          {
+            echo "<!-- inkmath-shots -->"
+            echo "### 📸 inkmath in kitty and kitty + tmux at \`${short}\`"
+            echo
+            if [ "$have_base" = false ]; then
+              echo "No baseline from \`main\` yet (the next push to \`main\` creates it): this shows the PR's images only."
+              echo
+              table "${samples[@]}"
+            else
+              echo "Each cell: before (\`main\` @ \`${base_sha}\`) | after (this PR). **${nchanged} of ${#status[@]} images differ**" \
+                "(ImageMagick AE, fuzz ${FUZZ}, more than ${DIFF_PIXELS} px). The diff is a hint only, it never fails CI."
+              echo
+              if [ "${#changed[@]}" -gt 0 ]; then
+                table "${changed[@]}"
+                echo
+              fi
+              if [ "${#unchanged[@]}" -gt 0 ]; then
+                echo "<details><summary>${#unchanged[@]} sample(s) without visual change</summary>"
+                echo
+                table "${unchanged[@]}"
+                echo
+                echo "</details>"
+              fi
+            fi
+            echo
+            echo "<sub>Full-size images: \`inkmath-shots\` artifact of the [workflow run](${RUN_URL}).</sub>"
+          } >"$RUNNER_TEMP/comment.md"
+
+          id="$(gh api --paginate "repos/${REPO}/issues/${PR}/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- inkmath-shots -->"))) | .id' | head -n1)"
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/${REPO}/issues/comments/${id}" -F "body=@${RUNNER_TEMP}/comment.md" >/dev/null
+          else
+            gh api -X POST "repos/${REPO}/issues/${PR}/comments" -F "body=@${RUNNER_TEMP}/comment.md" >/dev/null
+          fi
+          echo "commented on #${PR}: ${nchanged} of ${#status[@]} images differ"
+          SCRIPT
+          bash "$RUNNER_TEMP/preview.sh" || echo "::warning::inkmath preview failed (see the log above): no screenshots in the PR this run"

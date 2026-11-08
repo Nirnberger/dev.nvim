@@ -16,6 +16,9 @@ protocol (Unicode placeholders; Ghostty, kitty, through tmux). Lua plugin + Node
 - `make test` (all), `make test-file F=tests/test_x.lua`, `make test-worker` (needs `cd worker && npm ci`),
   `make deps` (clone mini.nvim + treesitter parsers), `make doc` (regenerate help), `make bench`.
 - `cd worker && npm ci` once; `:InkMath build` does the same for users.
+- `bash scripts/screenshots.sh <outdir>`: PNG per dev/samples file x {kitty, kitty-tmux} (Xvfb, kitty in PATH, e.g.
+  `~/.local/kitty.app/bin`; samples must fit 90x44). CI job `screenshots` -> `preview` (inline, no checkout) puts them
+  on branch `pr-previews` and in a PR comment; samples in dev/samples are what the owner sees there.
 
 ## Test env
 - Needs on PATH: nvim >= 0.12, node >= 18, `tree-sitter` CLI + C compiler (parsers), `tectonic`, `magick` (IM7).

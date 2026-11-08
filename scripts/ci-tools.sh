@@ -86,7 +86,8 @@ else
   pkgs=()
   command -v xvfb-run >/dev/null || pkgs+=(xvfb)
   command -v xauth >/dev/null || pkgs+=(xauth)
-  for p in libxcb-xkb1 libxkbcommon-x11-0; do
+  command -v tmux >/dev/null || pkgs+=(tmux) # scripts/screenshots.sh kitty-tmux variant
+  for p in libxcb-xkb1 libxkbcommon-x11-0 fonts-dejavu-core; do
     dpkg -s "$p" >/dev/null 2>&1 || pkgs+=("$p")
   done
   if [ "${#pkgs[@]}" -gt 0 ]; then sudo apt-get update -qq && sudo apt-get install -y "${pkgs[@]}"; fi
