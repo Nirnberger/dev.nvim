@@ -1,6 +1,7 @@
 --- Picks the terminal graphics backend (see docs/superpowers/specs/2026-11-08-terminal-backends-design.md).
 ---@class inkmath.Backend
 ---@field name "kitty"|"iterm2"|"sixel"
+---@field transmit? boolean false: the backend sends pixels with each paint (no resident kitty image)
 ---@field mode "placeholder"|"overlay" placeholder: the image is text cells (kitty); overlay: painted at screen cells
 ---@field send fun(seq: string)
 ---@field probe fun(env: table): boolean
@@ -13,11 +14,13 @@ local UNSET = {} -- memo sentinel: nothing cached yet
 local memo = UNSET ---@type inkmath.Backend|nil|table
 local memo_why ---@type string|nil
 
---- Candidate backends in `auto` order, by name. Later tasks add iTerm2, Sixel and kitty's overlay mode.
+--- Candidate backends in `auto` order, by name. Later tasks add Sixel and kitty's overlay mode.
 ---@return table<string, inkmath.Backend>
-local function registry() return { kitty = require("inkmath.term.kitty") } end
+local function registry()
+  return { kitty = require("inkmath.term.kitty"), iterm2 = require("inkmath.term.backends.iterm2") }
+end
 
-local AUTO_ORDER = { "kitty" }
+local AUTO_ORDER = { "kitty", "iterm2" }
 
 ---@param env? table environment to inspect (default: vim.env)
 ---@return inkmath.Backend|nil backend

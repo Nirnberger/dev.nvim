@@ -273,7 +273,7 @@ M.options = {
     default = "auto",
     check = oneof("auto", "kitty", "iterm2", "sixel", "none"),
     expect = "one of 'auto', 'kitty', 'iterm2', 'sixel', 'none'",
-    doc = "Terminal graphics backend: 'auto' detects it (kitty/Ghostty today), a name forces that backend, 'none' shows no images.",
+    doc = "Terminal graphics backend: 'auto' detects it (kitty/Ghostty, iTerm2), a name forces that backend, 'none' shows no images.",
   },
   {
     path = "cell_size",

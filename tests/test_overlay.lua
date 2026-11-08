@@ -137,4 +137,19 @@ T["clear(buf) deletes the buffer's images and wipeout clears"] = function()
   eq(count("del"), 1)
 end
 
+T["backend without transmit never touches kitty images"] = function()
+  fake.transmit = false
+  local called = false
+  images.ensure = function()
+    called = true
+    return 7
+  end
+  local buf = setup({ "a $x$ b" })
+  place(buf, "n1", 0)
+  overlay.repaint()
+  flush()
+  eq(called, false)
+  eq(count("paint"), 1)
+end
+
 return T

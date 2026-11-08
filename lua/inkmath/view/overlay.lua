@@ -10,6 +10,18 @@ local M = {}
 local painted = {} ---@type table<string, {id: integer, buf: integer, row: integer, col: integer}>
 local scheduled = false
 local group ---@type integer?
+local own_ids, next_own = {}, 0 ---@type table<string, integer>, integer ids for backends that need no transmit
+
+--- Id of an image for painting: the kitty id when the backend transmits (needs the image resident),
+--- otherwise a private counter (iTerm2, Sixel send the pixels with every paint).
+local function id_for(b, img)
+  if b.transmit ~= false then return images.id(img.key) or images.ensure(img) end
+  if not own_ids[img.key] then
+    next_own = next_own + 1
+    own_ids[img.key] = next_own
+  end
+  return own_ids[img.key]
+end
 
 ---@return inkmath.Backend|nil b the active backend when it paints at cells
 function M.active()
@@ -65,7 +77,7 @@ local function paint_now()
   end
   for key, w in pairs(want) do
     if not painted[key] then
-      local id = images.id(w.img.key) or images.ensure(w.img)
+      local id = id_for(b, w.img)
       if id then
         for _, seq in
           ipairs(b.paint({ path = w.img.path, cols = w.img.cols, rows = w.img.rows, id = id }, w.row, w.col))
