@@ -8,51 +8,66 @@ local function d(lines) return detect.detect(h.buf(lines, "tex")) end
 
 T["inline dollar"] = function()
   local n = d({ "$x$" })
-  eq(#n, 1); eq(n[1].kind, "inline"); eq(n[1].src, "x")
+  eq(#n, 1)
+  eq(n[1].kind, "inline")
+  eq(n[1].src, "x")
 end
 T["inline paren"] = function()
   local n = d({ "\\(x\\)" })
-  eq(#n, 1); eq(n[1].kind, "inline"); eq(n[1].src, "x")
+  eq(#n, 1)
+  eq(n[1].kind, "inline")
+  eq(n[1].src, "x")
 end
 T["display bracket"] = function()
   local n = d({ "\\[a\\]" })
-  eq(#n, 1); eq(n[1].kind, "display")
+  eq(#n, 1)
+  eq(n[1].kind, "display")
 end
 T["align block"] = function()
   local lines = { "\\begin{align}", "a&=b\\\\", "c&=d", "\\end{align}" }
   local n = d(lines)
-  eq(#n, 1); eq(n[1].kind, "block"); eq(n[1].env, "align")
-  eq(n[1].range, r(0, 0, 3, 11)); eq(n[1].src, table.concat(lines, "\n"))
+  eq(#n, 1)
+  eq(n[1].kind, "block")
+  eq(n[1].env, "align")
+  eq(n[1].range, r(0, 0, 3, 11))
+  eq(n[1].src, table.concat(lines, "\n"))
 end
 for _, env in ipairs({ "equation*", "gather", "multline" }) do
   T["block " .. env] = function()
     local n = d({ "\\begin{" .. env .. "}", "a", "\\end{" .. env .. "}" })
-    eq(#n, 1); eq(n[1].kind, "block"); eq(n[1].env, env)
+    eq(#n, 1)
+    eq(n[1].kind, "block")
+    eq(n[1].env, env)
   end
 end
 T["escaped dollar"] = function() eq(#d({ "\\$5" }), 0) end
 T["verb"] = function() eq(#d({ "\\verb|$x$|" }), 0) end
 T["comment"] = function() eq(#d({ "% $x$" }), 0) end
 T["preamble"] = function()
-  local b = h.buf({ "\\documentclass{article}", "\\newcommand{\\R}{\\mathbb{R}}", "\\begin{document}", "$\\R$", "\\end{document}" }, "tex")
+  local b = h.buf(
+    { "\\documentclass{article}", "\\newcommand{\\R}{\\mathbb{R}}", "\\begin{document}", "$\\R$", "\\end{document}" },
+    "tex"
+  )
   eq(require("inkmath.detect.latex").preamble(b), { "\\documentclass{article}", "\\newcommand{\\R}{\\mathbb{R}}" })
 end
-T["preamble none"] = function()
-  eq(require("inkmath.detect.latex").preamble(h.buf({ "$x$" }, "tex")), {})
-end
+T["preamble none"] = function() eq(require("inkmath.detect.latex").preamble(h.buf({ "$x$" }, "tex")), {}) end
 
 T["dollar display"] = function()
   local n = d({ "$$x$$" })
-  eq(#n, 1); eq(n[1].kind, "display"); eq(n[1].src, "x")
+  eq(#n, 1)
+  eq(n[1].kind, "display")
+  eq(n[1].src, "x")
 end
 T["nested env outermost only"] = function()
   local n = d({ "\\begin{equation}", "\\begin{split}a&=b\\end{split}", "\\end{equation}" })
-  eq(#n, 1); eq(n[1].env, "equation")
+  eq(#n, 1)
+  eq(n[1].env, "equation")
 end
 T["verb star"] = function() eq(#d({ "\\verb*|$x$|" }), 0) end
 T["verb then math"] = function()
   local n = d({ "\\verb|a| $y$" })
-  eq(#n, 1); eq(n[1].src, "y")
+  eq(#n, 1)
+  eq(n[1].src, "y")
 end
 
 T["detect is fast on a large buffer"] = function()

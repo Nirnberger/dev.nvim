@@ -24,13 +24,9 @@ function M.argv(cmd, ...)
 end
 
 ---@return {mathjax: boolean, tectonic: boolean}
-function M.available()
-  return { mathjax = mathjax.available(), tectonic = tectonic.available() }
-end
+function M.available() return { mathjax = mathjax.available(), tectonic = tectonic.available() } end
 
-function M.shutdown()
-  mathjax.shutdown()
-end
+function M.shutdown() mathjax.shutdown() end
 
 -- mathjax errors that mean "could not run" rather than "TeX is invalid"
 local UNAVAILABLE = {
@@ -87,15 +83,15 @@ local function mathjax_stage(node, ctx, key, cb)
   local function finish(img, err)
     local list = mj_inflight[slot]
     mj_inflight[slot] = nil
-    for _, w in ipairs(list or {}) do pcall(w, img, err) end
+    for _, w in ipairs(list or {}) do
+      pcall(w, img, err)
+    end
   end
   local ok, e = pcall(mathjax_render, node, ctx, key, finish)
   if not ok then finish(nil, { message = tostring(e), backend = "mathjax" }) end
 end
 
-local function tectonic_render(node, ctx, key, cb)
-  tectonic.submit({ node = node, ctx = ctx, key = key }, cb)
-end
+local function tectonic_render(node, ctx, key, cb) tectonic.submit({ node = node, ctx = ctx, key = key }, cb) end
 
 --- The cached image of `node` (either backend), or nil.
 ---@param node inkmath.MathNode
@@ -186,9 +182,7 @@ function M.render(node, ctx, cb, opts)
   end
 
   local function start()
-    if no_fallback then
-      return mathjax_stage(node, ctx, mkey, done)
-    end
+    if no_fallback then return mathjax_stage(node, ctx, mkey, done) end
     if cfg.backend == "tectonic" then
       stage()
       return with_tectonic(nil)
@@ -199,18 +193,14 @@ function M.render(node, ctx, cb, opts)
         done(img, nil)
       elseif cfg.fallback then
         local ok, e = pcall(with_tectonic, err)
-        if not ok then
-          done(nil, { message = tostring(e), backend = "tectonic" })
-        end
+        if not ok then done(nil, { message = tostring(e), backend = "tectonic" }) end
       else
         done(nil, err)
       end
     end)
   end
   local ok, e = pcall(start)
-  if not ok then
-    done(nil, { message = tostring(e), backend = "render" })
-  end
+  if not ok then done(nil, { message = tostring(e), backend = "render" }) end
 end
 
 return M

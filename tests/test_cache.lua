@@ -5,7 +5,11 @@ local cache = require("inkmath.render.cache")
 
 local node = { id = "1", kind = "inline", src = "x^2", range = { 0, 0, 0, 3 } }
 local function ctx(o)
-  return vim.tbl_extend("force", { color = "#c0caf5", cell_w = 10, cell_h = 20, container_px = 800, macros = { R = "\\mathbb{R}" } }, o or {})
+  return vim.tbl_extend(
+    "force",
+    { color = "#c0caf5", cell_w = 10, cell_h = 20, container_px = 800, macros = { R = "\\mathbb{R}" } },
+    o or {}
+  )
 end
 
 T["same inputs same key"] = function() eq(cache.key(node, ctx(), "mathjax"), cache.key(node, ctx(), "mathjax")) end
@@ -163,7 +167,9 @@ T["prune keeps newest"] = function()
   vim.wait(2000, function() return done end)
   eq(done, true)
   eq(remaining(), { "prune07", "prune08", "prune09", "prune10" }) -- <= 90% of 500 KiB
-  for _, k in ipairs({ "prune01", "prune06" }) do eq(vim.uv.fs_stat(cache.dir() .. "/" .. k .. ".json"), nil) end
+  for _, k in ipairs({ "prune01", "prune06" }) do
+    eq(vim.uv.fs_stat(cache.dir() .. "/" .. k .. ".json"), nil)
+  end
   cache.clear()
 end
 -- final review #4: an image still in the terminal (it may be placed) keeps its PNG:

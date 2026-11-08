@@ -2,7 +2,8 @@
 -- until `rearm`.
 local M = {}
 
-local LEVELS = { error = vim.log.levels.ERROR, warn = vim.log.levels.WARN, info = vim.log.levels.INFO, debug = vim.log.levels.DEBUG }
+local LEVELS =
+  { error = vim.log.levels.ERROR, warn = vim.log.levels.WARN, info = vim.log.levels.INFO, debug = vim.log.levels.DEBUG }
 M.LEVEL_NAMES = vim.tbl_keys(LEVELS)
 table.sort(M.LEVEL_NAMES)
 
@@ -21,9 +22,12 @@ function M.notify(msg, level)
   if vim.v.vim_did_enter == 0 then
     -- during startup (a file given on the command line): after the first screen is
     -- drawn, so the message does not stop startup at a "Press ENTER" prompt
-    vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = function()
-      vim.schedule(function() vim.notify(msg, level) end)
-    end })
+    vim.api.nvim_create_autocmd("VimEnter", {
+      once = true,
+      callback = function()
+        vim.schedule(function() vim.notify(msg, level) end)
+      end,
+    })
     return
   end
   vim.notify(msg, level)

@@ -14,13 +14,30 @@ local stubs = {
   { require("inkmath.term.tmux"), "in_tmux", function() return false end },
   { require("inkmath.term.cells"), "cell_size", function() return { w = 10, h = 20 } end },
   { require("inkmath.render"), "available", function() return { mathjax = false, tectonic = true } end },
-  { require("inkmath.render"), "render", function(n, ctx, cb)
-    cb({ key = require("inkmath.render.cache").key(n, ctx, "mathjax"), path = "/stub.png", cols = 1, rows = 1, ratio = 0.5 })
-  end },
+  {
+    require("inkmath.render"),
+    "render",
+    function(n, ctx, cb)
+      cb({
+        key = require("inkmath.render.cache").key(n, ctx, "mathjax"),
+        path = "/stub.png",
+        cols = 1,
+        rows = 1,
+        ratio = 0.5,
+      })
+    end,
+  },
   { vim, "notify", function() end },
 }
-local FAKE = { "render-markdown", "render-markdown.state", "render-markdown.core.manager", "markview", "markview.spec",
-  "markview.state", "image" }
+local FAKE = {
+  "render-markdown",
+  "render-markdown.state",
+  "render-markdown.core.manager",
+  "markview",
+  "markview.spec",
+  "markview.state",
+  "image",
+}
 local saved, bufs = {}, {}
 
 local function find(list, pat)
@@ -29,7 +46,9 @@ local function find(list, pat)
   end
   error("no interop line matching " .. pat .. " in " .. vim.inspect(list))
 end
-local function warns(list) return vim.tbl_filter(function(x) return x.level == "warn" end, list) end
+local function warns(list)
+  return vim.tbl_filter(function(x) return x.level == "warn" end, list)
+end
 
 local function buf(lines, ft)
   local b = h.buf(lines or { "$x$" }, ft or "markdown")
@@ -40,12 +59,17 @@ end
 T["interop"] = MiniTest.new_set({
   hooks = {
     pre_case = function()
-      for i, s in ipairs(stubs) do saved[i] = s[1][s[2]]; s[1][s[2]] = s[3] end
+      for i, s in ipairs(stubs) do
+        saved[i] = s[1][s[2]]
+        s[1][s[2]] = s[3]
+      end
       c.reset()
     end,
     post_case = function()
       vim.wait(20, function() return false end)
-      for _, m in ipairs(FAKE) do package.loaded[m] = nil end
+      for _, m in ipairs(FAKE) do
+        package.loaded[m] = nil
+      end
       _G.Snacks = nil
       for _, b in ipairs(bufs) do
         pcall(core.detach, b)
@@ -53,7 +77,9 @@ T["interop"] = MiniTest.new_set({
       end
       bufs = {}
       require("inkmath.term.images").evict(0, {})
-      for i, s in ipairs(stubs) do s[1][s[2]] = saved[i] end
+      for i, s in ipairs(stubs) do
+        s[1][s[2]] = saved[i]
+      end
       c.reset()
     end,
   },
@@ -107,8 +133,20 @@ I["render-markdown: check loads nothing"] = function()
 end
 local function fake_snacks(cfg, image)
   local loads = {}
-  local S = setmetatable({ config = setmetatable({}, { __index = function(t, k) rawset(t, k, {}); return t[k] end }) },
-    { __index = function(t, k) loads[#loads + 1] = k; rawset(t, k, { config = { enabled = true } }); return rawget(t, k) end })
+  local S = setmetatable({
+    config = setmetatable({}, {
+      __index = function(t, k)
+        rawset(t, k, {})
+        return t[k]
+      end,
+    }),
+  }, {
+    __index = function(t, k)
+      loads[#loads + 1] = k
+      rawset(t, k, { config = { enabled = true } })
+      return rawget(t, k)
+    end,
+  })
   if cfg then rawset(S.config, "image", cfg) end
   if image then rawset(S, "image", image) end
   _G.Snacks = S
@@ -153,15 +191,17 @@ I["conceal=false suggested next to render-markdown"] = function()
   package.loaded["render-markdown.state"] = { config = { latex = { enabled = false } } }
   match(find(health._interop(), "conceal = false").msg, "render%-markdown")
   c.setup({ conceal = false })
-  for _, r in ipairs(health._interop()) do eq(r.msg:find("conceal = false", 1, true), nil) end
+  for _, r in ipairs(health._interop()) do
+    eq(r.msg:find("conceal = false", 1, true), nil)
+  end
   -- the common form: only markdown-like filetypes leave conceal to the other plugin
   c.reset()
   c.setup({ overrides = { markdown = { conceal = false }, quarto = { conceal = false }, rmd = { conceal = false } } })
-  for _, r in ipairs(health._interop()) do eq(r.msg:find("conceal = false", 1, true), nil) end
+  for _, r in ipairs(health._interop()) do
+    eq(r.msg:find("conceal = false", 1, true), nil)
+  end
 end
-I["clean when nothing loaded"] = function()
-  eq(warns(health._interop()), {})
-end
+I["clean when nothing loaded"] = function() eq(warns(health._interop()), {}) end
 I["conceallevel conflict"] = function()
   c.setup({ conceal = false })
   local b = buf()
@@ -197,9 +237,7 @@ I["rmd auto-attaches"] = function()
   vim.wait(20, function() return false end) -- api._auto is scheduled
   eq(core.is_attached(b), true)
 end
-I["quarto and rmd in the default filetypes"] = function()
-  eq(c.get().filetypes, { "tex", "markdown", "quarto", "rmd" })
-end
+I["quarto and rmd in the default filetypes"] = function() eq(c.get().filetypes, { "tex", "markdown", "quarto", "rmd" }) end
 
 -- WezTerm answers the kitty graphics query but has no Unicode placeholders: the
 -- health error says so instead of "does not support kitty graphics"
@@ -213,7 +251,10 @@ T["health names WezTerm's missing Unicode placeholders"] = function()
   local ok, err = pcall(health.check)
   kitty.supported, vim.env.TERM_PROGRAM, vim.health.error = saved_sup, saved_tp, saved_err
   assert(ok, err)
-  local hit = vim.tbl_filter(function(m) return m:find("WezTerm has kitty graphics but no Unicode placeholders", 1, true) end, errors)
+  local hit = vim.tbl_filter(
+    function(m) return m:find("WezTerm has kitty graphics but no Unicode placeholders", 1, true) end,
+    errors
+  )
   eq(#hit, 1)
 end
 

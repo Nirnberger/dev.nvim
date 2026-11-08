@@ -118,7 +118,9 @@ function M.list(buf)
   local q = queues[buf]
   local out = {}
   if q then
-    for k = q.i, #q.jobs do out[#out + 1] = q.jobs[k].node end
+    for k = q.i, #q.jobs do
+      out[#out + 1] = q.jobs[k].node
+    end
   end
   return out, active
 end
@@ -135,7 +137,9 @@ function M.stats(buf)
   if buf then
     add(buf)
   else
-    for b in pairs(queues) do add(b) end
+    for b in pairs(queues) do
+      add(b)
+    end
     for b, n in pairs(inflight) do
       if n > 0 and not out[b] then add(b) end
     end

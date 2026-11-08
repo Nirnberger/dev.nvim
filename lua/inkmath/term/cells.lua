@@ -7,18 +7,19 @@ local M = {}
 local cached ---@type {w:integer,h:integer}|false|nil false: every source failed
 
 --- Forget the cached size (or failure); core calls this on VimResized/FocusGained.
-function M.refresh()
-  cached = nil
-end
+function M.refresh() cached = nil end
 
 ---@return integer rc, table|nil ws
 function M._ioctl()
   local ok, rc, ws = pcall(function()
     local ffi = require("ffi")
-    pcall(ffi.cdef, [[
+    pcall(
+      ffi.cdef,
+      [[
       typedef struct { unsigned short ws_row, ws_col, ws_xpixel, ws_ypixel; } inkmath_winsize;
       int ioctl(int fd, unsigned long request, ...);
-    ]])
+    ]]
+    )
     local req = (vim.uv.os_uname().sysname == "Darwin") and 0x40087468 or 0x5413
     local arr = ffi.new("inkmath_winsize[1]")
     local r = ffi.C.ioctl(1, req, ffi.cast("void*", arr))
@@ -69,9 +70,7 @@ end
 ---@return {w:integer,h:integer}|nil
 function M.cell_size()
   local c = config.get().cell_size
-  if c then
-    return { w = c.w, h = c.h }
-  end
+  if c then return { w = c.w, h = c.h } end
   if cached == nil then
     -- inside tmux the CSI 16t reply goes to tmux, not the pane: ask tmux first.
     -- A failure is cached too (CSI waits up to 200 ms), until M.refresh().

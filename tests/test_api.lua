@@ -43,7 +43,9 @@ local function buf(lines, ft)
   return b
 end
 
-local function wait_idle() vim.wait(200, function() return false end, 10) end
+local function wait_idle()
+  vim.wait(200, function() return false end, 10)
+end
 local function last_event(name)
   for i = #events, 1, -1 do
     if events[i].name == name then return events[i].data end
@@ -56,7 +58,10 @@ end
 T["api"] = MiniTest.new_set({
   hooks = {
     pre_case = function()
-      for i, s in ipairs(stubs) do saved[i] = s[1][s[2]]; s[1][s[2]] = s[3] end
+      for i, s in ipairs(stubs) do
+        saved[i] = s[1][s[2]]
+        s[1][s[2]] = s[3]
+      end
       stub_render()
       vim.g.inkmath_disable = nil
       c.reset()
@@ -75,7 +80,9 @@ T["api"] = MiniTest.new_set({
         pcall(vim.api.nvim_buf_delete, b, { force = true })
       end
       bufs = {}
-      for i, s in ipairs(stubs) do s[1][s[2]] = saved[i] end
+      for i, s in ipairs(stubs) do
+        s[1][s[2]] = saved[i]
+      end
       render.render = real_render
       vim.g.inkmath_disable = nil
       c.reset()
@@ -141,9 +148,15 @@ end
 A["render options reach the ctx"] = function()
   local got
   render.render = function(n, ctx) got = { n = n, ctx = ctx } end
-  api.render("y", { kind = "display", color = "#123456", scale = 2, width = 30, macros = { RR = "\\mathbb{R}" } }, function() end)
-  eq({ got.n.kind, got.n.src, got.ctx.color, got.ctx.container_px, got.ctx.opts.scale, got.ctx.macros.RR },
-    { "display", "y", "#123456", 30 * cell_w, 2, "\\mathbb{R}" })
+  api.render(
+    "y",
+    { kind = "display", color = "#123456", scale = 2, width = 30, macros = { RR = "\\mathbb{R}" } },
+    function() end
+  )
+  eq(
+    { got.n.kind, got.n.src, got.ctx.color, got.ctx.container_px, got.ctx.opts.scale, got.ctx.macros.RR },
+    { "display", "y", "#123456", 30 * cell_w, 2, "\\mathbb{R}" }
+  )
   eq(c.get().scale, 1.0) -- the global config is untouched
 end
 A["placeholder transmits and pins until release"] = function()
@@ -203,10 +216,15 @@ A["Attach and Detach events"] = function()
   eq(count_events("InkMathDetach"), n)
 end
 A["Attach fires before the first Render (all cache hits)"] = function()
-  render.render = function(n, ctx, cb) cb({ key = cache.key(n, ctx, "mathjax"), path = "/stub.png", cols = 1, rows = 1, ratio = 0.5 }) end
+  render.render = function(n, ctx, cb)
+    cb({ key = cache.key(n, ctx, "mathjax"), path = "/stub.png", cols = 1, rows = 1, ratio = 0.5 })
+  end
   local b = buf()
   core.attach(b, { sync = true })
-  local names = vim.tbl_map(function(e) return e.name end, vim.tbl_filter(function(e) return e.name ~= "InkMathToggle" end, events))
+  local names = vim.tbl_map(
+    function(e) return e.name end,
+    vim.tbl_filter(function(e) return e.name ~= "InkMathToggle" end, events)
+  )
   eq(names[1], "InkMathAttach")
   eq(vim.tbl_contains(names, "InkMathRender"), true)
 end
@@ -215,7 +233,9 @@ A["render cb errors are reported on both paths"] = function()
   vim.notify = function(m) notes[#notes + 1] = m end
   require("inkmath.log").rearm("error:render cb")
   render.render = function(n, ctx, cb) cb({ key = "k", path = "/p.png", cols = 1, rows = 1, ratio = 1 }) end -- cache hit: sync
-  MiniTest.expect.no_error(function() api.render("x", {}, function() error("sync boom") end) end)
+  MiniTest.expect.no_error(function()
+    api.render("x", {}, function() error("sync boom") end)
+  end)
   eq(#notes, 1)
   match(notes[1], "sync boom")
   require("inkmath.log").rearm("error:render cb")
@@ -234,8 +254,10 @@ A[":InkMath and <Plug> maps go through the api"] = function()
   vim.cmd("InkMath enable")
   vim.cmd("InkMath! disable")
   vim.cmd("InkMath clear-cache")
-  vim.cmd("execute \"normal \\<Plug>(inkmath-toggle)\"")
-  for k, f in pairs(orig) do api[k] = f end
+  vim.cmd('execute "normal \\<Plug>(inkmath-toggle)"')
+  for k, f in pairs(orig) do
+    api[k] = f
+  end
   eq(calls, { { "enable", 0 }, { "disable" }, { "clear_cache" }, { "toggle", 0 } })
 end
 

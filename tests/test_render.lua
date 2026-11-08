@@ -1,9 +1,7 @@
 vim.env.XDG_CACHE_HOME = vim.fn.tempname()
 local T = MiniTest.new_set({
   hooks = {
-    post_case = function()
-      require("inkmath.config").setup({})
-    end,
+    post_case = function() require("inkmath.config").setup({}) end,
   },
 })
 local eq = MiniTest.expect.equality
@@ -12,7 +10,11 @@ local render = require("inkmath.render")
 local mathjax = require("inkmath.render.mathjax")
 
 local function ctx(o)
-  return vim.tbl_extend("force", { color = "#c0caf5", cell_w = 10, cell_h = 20, container_px = 800, macros = {} }, o or {})
+  return vim.tbl_extend(
+    "force",
+    { color = "#c0caf5", cell_w = 10, cell_h = 20, container_px = 800, macros = {} },
+    o or {}
+  )
 end
 local function node(src, kind, id)
   return { id = id or src, kind = kind or "inline", src = src, range = { 0, 0, 0, #src } }
@@ -95,7 +97,10 @@ T["thrown error does not wedge in-flight"] = function()
   cache.put = function() error("boom") end
   local n, c = node("q^7"), ctx()
   local calls, img1, err1 = 0, nil, nil
-  render.render(n, c, function(i, e) calls = calls + 1; img1, err1 = i, e end)
+  render.render(n, c, function(i, e)
+    calls = calls + 1
+    img1, err1 = i, e
+  end)
   vim.wait(15000, function() return calls > 0 end, 20)
   cache.put = orig
   vim.wait(200)
@@ -127,8 +132,19 @@ T["request timeout kills worker and recovers"] = function()
   local orig = mathjax.timeout_ms
   mathjax.timeout_ms = 1
   local done, res, err
-  mathjax.request({ tex = "x", display = false, macros = {}, color = "#ffffff", cell_w = 10, cell_h = 20, container_px = 800,
-    x_height = 0.45, baseline = 0.78, scale = 1, out = vim.fn.tempname() .. ".png" }, function(r, e)
+  mathjax.request({
+    tex = "x",
+    display = false,
+    macros = {},
+    color = "#ffffff",
+    cell_w = 10,
+    cell_h = 20,
+    container_px = 800,
+    x_height = 0.45,
+    baseline = 0.78,
+    scale = 1,
+    out = vim.fn.tempname() .. ".png",
+  }, function(r, e)
     done, res, err = true, r, e
   end)
   vim.wait(5000, function() return done end, 5)
@@ -178,7 +194,9 @@ T["dedupe in flight"] = function()
   end
   local n, c = node("z^5"), ctx()
   local calls = 0
-  local function cb(img) if img then calls = calls + 1 end end
+  local function cb(img)
+    if img then calls = calls + 1 end
+  end
   render.render(n, c, cb)
   render.render(n, c, cb)
   vim.wait(15000, function() return calls == 2 end, 20)
@@ -190,10 +208,18 @@ end
 T["no_fallback never calls tectonic"] = function()
   local tectonic = require("inkmath.render.tectonic")
   local orig_batch, orig_submit, calls = tectonic.batch, tectonic.submit, 0
-  tectonic.batch = function(...) calls = calls + 1 return orig_batch(...) end
-  if orig_submit then tectonic.submit = function(...) calls = calls + 1 return orig_submit(...) end end
+  tectonic.batch = function(...)
+    calls = calls + 1
+    return orig_batch(...)
+  end
+  if orig_submit then tectonic.submit = function(...)
+    calls = calls + 1
+    return orig_submit(...)
+  end end
   local done, img, err
-  render.render(node("\\nomacro{q}"), ctx(), function(i, e) done, img, err = true, i, e end, { no_fallback = true })
+  render.render(node("\\nomacro{q}"), ctx(), function(i, e)
+    done, img, err = true, i, e
+  end, { no_fallback = true })
   vim.wait(15000, function() return done end, 20)
   vim.wait(300)
   tectonic.batch, tectonic.submit = orig_batch, orig_submit
@@ -244,7 +270,10 @@ T["max_formula_len counts characters"] = function()
   eq(err == nil or not err.message:find("too long"), true)
 end
 T["max_formula_len from the ctx's buffer config"] = function()
-  local img, err = render_sync(node("abcdefgh"), ctx({ opts = vim.tbl_extend("force", require("inkmath.config").get(), { max_formula_len = 3 }) }))
+  local img, err = render_sync(
+    node("abcdefgh"),
+    ctx({ opts = vim.tbl_extend("force", require("inkmath.config").get(), { max_formula_len = 3 }) })
+  )
   eq(img, nil)
   require("tests.expect").match(err.message, "too long")
 end
@@ -274,8 +303,19 @@ T["timeouts.mathjax_ms"] = function()
   eq(mathjax.timeout_ms, nil)
   require("inkmath.config").setup({ timeouts = { mathjax_ms = 1 } })
   local done, err
-  mathjax.request({ tex = "x", display = false, macros = {}, color = "#ffffff", cell_w = 10, cell_h = 20, container_px = 800,
-    x_height = 0.45, baseline = 0.78, scale = 1, out = vim.fn.tempname() .. ".png" }, function(_, e)
+  mathjax.request({
+    tex = "x",
+    display = false,
+    macros = {},
+    color = "#ffffff",
+    cell_w = 10,
+    cell_h = 20,
+    container_px = 800,
+    x_height = 0.45,
+    baseline = 0.78,
+    scale = 1,
+    out = vim.fn.tempname() .. ".png",
+  }, function(_, e)
     done, err = true, e
   end)
   vim.wait(5000, function() return done end, 5)
@@ -313,7 +353,9 @@ T["clear-cache returns at once and removes the files"] = function()
   cache.clear()
   local d = cache.dir()
   vim.fn.mkdir(d, "p")
-  for i = 1, 20 do vim.fn.writefile({ "x" }, d .. "/f" .. i .. ".json") end
+  for i = 1, 20 do
+    vim.fn.writefile({ "x" }, d .. "/f" .. i .. ".json")
+  end
   eq(cache.clear(), 20)
   eq(vim.uv.fs_stat(d .. "/f1.json"), nil)
 end

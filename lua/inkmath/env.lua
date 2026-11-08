@@ -16,17 +16,11 @@ local function warn(cause, msg) log.once(cause, "inkmath: " .. msg .. " (:checkh
 --- Can images be shown? (kitty and tmux memoize their shell-outs.)
 ---@return {mathjax: boolean, tectonic: boolean}|nil backends, nil when not
 function M.check()
-  if not require("inkmath.term.kitty").supported() then
-    return warn("kitty", "no kitty graphics here")
-  end
+  if not require("inkmath.term.kitty").supported() then return warn("kitty", "no kitty graphics here") end
   local tmux = require("inkmath.term.tmux")
-  if tmux.in_tmux() and not tmux.passthrough_enabled() then
-    return warn("tmux", "tmux needs allow-passthrough")
-  end
+  if tmux.in_tmux() and not tmux.passthrough_enabled() then return warn("tmux", "tmux needs allow-passthrough") end
   local av = require("inkmath.render").available()
-  if not (av.mathjax or av.tectonic) then
-    return warn("backend", "no renderer, run :InkMath build")
-  end
+  if not (av.mathjax or av.tectonic) then return warn("backend", "no renderer, run :InkMath build") end
   if not vim.o.termguicolors then
     -- image ids travel in the placeholder's fg #RRGGBB; 256-color output breaks them
     warn("termguicolors", "set 'termguicolors'")
@@ -37,7 +31,9 @@ end
 --- The environment may have been fixed (or broken) since: check the terminal, tmux and
 --- the backend again and let their warnings fire again (FocusGained, :InkMath refresh).
 function M.rearm()
-  for _, cause in ipairs(M.CAUSES) do log.rearm(cause) end
+  for _, cause in ipairs(M.CAUSES) do
+    log.rearm(cause)
+  end
   require("inkmath.term.kitty").forget()
   require("inkmath.term.tmux").forget()
   require("inkmath.render.mathjax")._reset_available()

@@ -42,7 +42,9 @@ T["no default keymaps"] = function()
   child.cmd("runtime plugin/inkmath.lua")
   local maps = child.lua_get([[vim.tbl_map(function(m) return m.lhs end, vim.tbl_filter(function(m)
     return (m.desc or ""):find("^inkmath") ~= nil end, vim.api.nvim_get_keymap("")))]])
-  for _, lhs in ipairs(maps) do eq(vim.startswith(lhs, "<Plug>"), true) end
+  for _, lhs in ipairs(maps) do
+    eq(vim.startswith(lhs, "<Plug>"), true)
+  end
   eq(child.fn.maparg("<Plug>(inkmath-toggle)", "n") ~= "", true)
   eq(child.fn.maparg("<leader>m", "n"), "")
 end

@@ -13,7 +13,11 @@ local function has_toplevel_break(src)
     while depth > 0 do
       local ms, me, which = s:find(pat, pos)
       if not ms then break end
-      if which == "begin" then depth = depth + 1 elseif which == "end" then depth = depth - 1 end
+      if which == "begin" then
+        depth = depth + 1
+      elseif which == "end" then
+        depth = depth - 1
+      end
       pos = me + 1
       if depth == 0 then close_end = me end
     end
@@ -33,7 +37,9 @@ end
 
 local function make(kind, src, srow, scol, erow, ecol)
   return {
-    id = node_id(kind, nil, src), kind = kind, src = src,
+    id = node_id(kind, nil, src),
+    kind = kind,
+    src = src,
     range = { srow = srow, scol = scol, erow = erow, ecol = ecol },
   }
 end
@@ -76,7 +82,9 @@ local function get_inline_trees(parser, lo, hi, bounded)
   local child = parser:children().markdown_inline
   local out = {}
   if child then
-    for _, t in pairs(child:trees()) do out[#out + 1] = t end
+    for _, t in pairs(child:trees()) do
+      out[#out + 1] = t
+    end
   end
   return out
 end
@@ -111,7 +119,9 @@ local function scan(lines, off, rows, pair)
     local line = lines[i]
     if line:find("$$", 1, true) and not in_code(i) and trim(line) == "$$" and not line:match("\\%s*$") then
       local j = i + 1
-      while j <= #lines and not in_code(j) and trim(lines[j]) ~= "$$" do j = j + 1 end
+      while j <= #lines and not in_code(j) and trim(lines[j]) ~= "$$" do
+        j = j + 1
+      end
       if j <= #lines and not in_code(j) then
         pair(i, j)
         i = j
@@ -173,9 +183,7 @@ function M.detect(bufnr, srow, erow)
         local dl = text:match("^%$%$") and 2 or 1
         if #text >= 2 * dl then
           local src = trim(text:sub(dl + 1, #text - dl))
-          if src ~= "" then
-            add(make(dl == 2 and "display" or "inline", wrap(src), sr, sc, er, ec))
-          end
+          if src ~= "" then add(make(dl == 2 and "display" or "inline", wrap(src), sr, sc, er, ec)) end
         end
       end
     end

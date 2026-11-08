@@ -12,9 +12,19 @@ local stubs = {
   { require("inkmath.term.tmux"), "in_tmux", function() return false end },
   { require("inkmath.term.cells"), "cell_size", function() return { w = 10, h = 20 } end },
   { require("inkmath.render"), "available", function() return { mathjax = false, tectonic = true } end },
-  { require("inkmath.render"), "render", function(n, ctx, cb)
-    cb({ key = require("inkmath.render.cache").key(n, ctx, "mathjax"), path = "/stub.png", cols = 1, rows = 1, ratio = 0.5 })
-  end },
+  {
+    require("inkmath.render"),
+    "render",
+    function(n, ctx, cb)
+      cb({
+        key = require("inkmath.render.cache").key(n, ctx, "mathjax"),
+        path = "/stub.png",
+        cols = 1,
+        rows = 1,
+        ratio = 0.5,
+      })
+    end,
+  },
   { vim, "notify", function() end },
 }
 local saved, bufs, b, w, groups = {}, {}, nil, nil, {}
@@ -43,7 +53,10 @@ end
 T["conceal"] = MiniTest.new_set({
   hooks = {
     pre_case = function()
-      for i, s in ipairs(stubs) do saved[i] = s[1][s[2]]; s[1][s[2]] = s[3] end
+      for i, s in ipairs(stubs) do
+        saved[i] = s[1][s[2]]
+        s[1][s[2]] = s[3]
+      end
       c.reset()
       vim.cmd("only")
       w = vim.api.nvim_get_current_win()
@@ -52,7 +65,9 @@ T["conceal"] = MiniTest.new_set({
       vim.api.nvim_win_set_buf(w, b)
     end,
     post_case = function()
-      for _, g in ipairs(groups) do vim.api.nvim_del_augroup_by_id(g) end
+      for _, g in ipairs(groups) do
+        vim.api.nvim_del_augroup_by_id(g)
+      end
       groups = {}
       vim.cmd("only")
       for _, x in ipairs(bufs) do
@@ -61,7 +76,9 @@ T["conceal"] = MiniTest.new_set({
       end
       bufs = {}
       require("inkmath.term.images").evict(0, {}) -- leave no resident image for other files
-      for i, s in ipairs(stubs) do s[1][s[2]] = saved[i] end
+      for i, s in ipairs(stubs) do
+        s[1][s[2]] = saved[i]
+      end
       c.reset()
     end,
   },
@@ -147,7 +164,10 @@ C["a timer write right after a key is not sticky"] = function()
   core.attach(b, { sync = true })
   type_keys("l")
   local done = false
-  vim.defer_fn(function() vim.wo[w].conceallevel = 0; done = true end, 0)
+  vim.defer_fn(function()
+    vim.wo[w].conceallevel = 0
+    done = true
+  end, 0)
   vim.wait(200, function() return done end)
   eq(conceal._sticky(b, w), false)
 end
@@ -189,24 +209,48 @@ end
 C["write inside ModeChanged / FileType / WinEnter is not sticky"] = function()
   core.attach(b, { sync = true })
   for _, ev in ipairs({ "ModeChanged", "FileType", "WinEnter" }) do
-    eq(conceal._user_initiated({ buf = b, win = w, command = "setlocal", typed = true, managers = {},
-      stack = "nvim_exec2()[1].." .. ev .. ' Autocommands for "*"..OptionSet Autocommands for "conceallevel"' }), false)
+    eq(
+      conceal._user_initiated({
+        buf = b,
+        win = w,
+        command = "setlocal",
+        typed = true,
+        managers = {},
+        stack = "nvim_exec2()[1].." .. ev .. ' Autocommands for "*"..OptionSet Autocommands for "conceallevel"',
+      }),
+      false
+    )
   end
 end
 C["modeline and setglobal not sticky"] = function()
   core.attach(b, { sync = true })
-  local function ui(cmd, typed) return conceal._user_initiated({ buf = b, win = w, command = cmd, stack = "", typed = typed, managers = {} }) end
+  local function ui(cmd, typed)
+    return conceal._user_initiated({ buf = b, win = w, command = cmd, stack = "", typed = typed, managers = {} })
+  end
   eq(ui("setlocal", true), true)
   eq(ui("set", true), true)
   eq(ui("modeline", true), false)
   eq(ui("setglobal", true), false)
   eq(ui("setlocal", false), false) -- not while a typed key is handled
-  eq(conceal._user_initiated({ buf = b, win = w, command = "setlocal", stack = "", typed = true, managers = { "markview" } }), false)
+  eq(
+    conceal._user_initiated({
+      buf = b,
+      win = w,
+      command = "setlocal",
+      stack = "",
+      typed = true,
+      managers = { "markview" },
+    }),
+    false
+  )
 end
 C["conceal=false: never user-initiated"] = function()
   c.setup({ conceal = false })
   core.attach(b, { sync = true })
-  eq(conceal._user_initiated({ buf = b, win = w, command = "setlocal", stack = "", typed = true, managers = {} }), false)
+  eq(
+    conceal._user_initiated({ buf = b, win = w, command = "setlocal", stack = "", typed = true, managers = {} }),
+    false
+  )
 end
 C["a non-nested FileType write (no OptionSet) is seen after FileType"] = function()
   core.attach(b, { sync = true })

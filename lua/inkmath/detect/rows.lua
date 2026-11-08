@@ -8,7 +8,9 @@ local M = {}
 ---@param list inkmath.Rows
 ---@return inkmath.Rows
 function M.add(list, a, b)
-  if a > b then a, b = b, a end
+  if a > b then
+    a, b = b, a
+  end
   local out, placed = {}, false
   for _, r in ipairs(list) do
     if r[2] < a - 1 then
@@ -70,7 +72,9 @@ end
 ---@return integer
 function M.count(list)
   local n = 0
-  for _, r in ipairs(list) do n = n + r[2] - r[1] + 1 end
+  for _, r in ipairs(list) do
+    n = n + r[2] - r[1] + 1
+  end
   return n
 end
 

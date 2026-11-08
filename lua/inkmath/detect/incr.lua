@@ -87,7 +87,9 @@ local function lang_of(buf)
 end
 
 local function hull(r, a, b)
-  if a > b then a, b = b, a end
+  if a > b then
+    a, b = b, a
+  end
   if r then return { math.min(r[1], a), math.max(r[2], b) } end
   return { a, b }
 end
@@ -96,9 +98,7 @@ local function add_dirty(st, a, b) st.dirty = hull(st.dirty, a, b) end
 
 --- position (row, col) after an edit, for a position at or after the old end
 local function shift_pos(row, col, e)
-  if row == e.oer then
-    return e.ner, e.nec + (col - e.oec)
-  end
+  if row == e.oer then return e.ner, e.nec + (col - e.oec) end
   return row + (e.ner - e.oer), col
 end
 
@@ -176,7 +176,9 @@ local function flush(st)
   end
   local edits = st.edits
   st.edits = {}
-  for _, e in ipairs(edits) do apply_edit(st, e) end
+  for _, e in ipairs(edits) do
+    apply_edit(st, e)
+  end
 end
 
 --- on_bytes for the state `st` it was attached for: a later state of the buffer
@@ -195,9 +197,12 @@ local function bytes_cb(st)
     -- a `\begin{comment}` or a `\\`) is never skipped (can_skip)
     if oer > 0 or oec > 0 then st.removed = true end
     st.edits[#st.edits + 1] = {
-      sr = sr, sc = sc,
-      oer = sr + oer, oec = oer == 0 and sc + oec or oec,
-      ner = sr + ner, nec = ner == 0 and sc + nec or nec,
+      sr = sr,
+      sc = sc,
+      oer = sr + oer,
+      oec = oer == 0 and sc + oec or oec,
+      ner = sr + ner,
+      nec = ner == 0 and sc + nec or nec,
     }
   end
 end
@@ -247,8 +252,13 @@ local function copy(nodes, stale)
   local out = {}
   for i, n in ipairs(nodes) do
     local r = n.range
-    out[i] = { id = n.id, kind = n.kind, src = n.src, env = n.env,
-      range = { srow = r.srow, scol = r.scol, erow = r.erow, ecol = r.ecol } }
+    out[i] = {
+      id = n.id,
+      kind = n.kind,
+      src = n.src,
+      env = n.env,
+      range = { srow = r.srow, scol = r.scol, erow = r.erow, ecol = r.ecol },
+    }
     if stale and #stale > 0 and rows.hits(stale, r.srow, r.erow) then out[i].stale = true end
   end
   return out
@@ -309,7 +319,9 @@ end
 local function can_skip(buf, st, md)
   if not (st.dirty and st.touched and not st.dropped and not st.removed and not st.has_error) then return false end
   local lo, hi = math.huge, -1
-  for row in pairs(st.touched) do lo, hi = math.min(lo, row), math.max(hi, row) end
+  for row in pairs(st.touched) do
+    lo, hi = math.min(lo, row), math.max(hi, row)
+  end
   if hi < 0 then return false end
   if st.tree then -- tree changes inside the edited rows only
     for row = st.tree[1], st.tree[2] do
@@ -326,13 +338,19 @@ local function can_skip(buf, st, md)
   end
   if md then
     local last = vim.api.nvim_buf_line_count(buf) - 1
-    while lo > 0 and not blank(buf, lo - 1) and hi - lo <= MAX_PARAGRAPH do lo = lo - 1 end
-    while hi < last and not blank(buf, hi + 1) and hi - lo <= MAX_PARAGRAPH do hi = hi + 1 end
+    while lo > 0 and not blank(buf, lo - 1) and hi - lo <= MAX_PARAGRAPH do
+      lo = lo - 1
+    end
+    while hi < last and not blank(buf, hi + 1) and hi - lo <= MAX_PARAGRAPH do
+      hi = hi + 1
+    end
     if hi - lo > MAX_PARAGRAPH then return false end
     return not precheck.triggers(vim.api.nvim_buf_get_lines(buf, lo, hi + 1, false))
   end
   local lines = {}
-  for row in pairs(st.touched) do lines[#lines + 1] = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or "" end
+  for row in pairs(st.touched) do
+    lines[#lines + 1] = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or ""
+  end
   return not precheck.triggers(lines)
 end
 
@@ -348,12 +366,16 @@ local function parse_for(buf, st, parser, lang, want)
       st.pending = true
       if not st.timer then
         st.timer = vim.uv.new_timer()
-        st.timer:start(FALLBACK_MS, 0, vim.schedule_wrap(function()
-          if st.pending then
-            st.force_sync = true
-            notify_ready(buf, st)
-          end
-        end))
+        st.timer:start(
+          FALLBACK_MS,
+          0,
+          vim.schedule_wrap(function()
+            if st.pending then
+              st.force_sync = true
+              notify_ready(buf, st)
+            end
+          end)
+        )
       end
       return false
     end
@@ -382,11 +404,17 @@ end
 local function changed_pairs(old, now)
   local function k(p) return (p[1] or -1) .. ":" .. (p[2] or -1) end
   local in_old, in_now = {}, {}
-  for _, p in ipairs(old) do in_old[k(p)] = true end
-  for _, p in ipairs(now) do in_now[k(p)] = true end
+  for _, p in ipairs(old) do
+    in_old[k(p)] = true
+  end
+  for _, p in ipairs(now) do
+    in_now[k(p)] = true
+  end
   local out = {}
   for _, p in ipairs(old) do
-    if not in_now[k(p)] then out[#out + 1] = { math.min(p[1] or p[2], p[2] or p[1]), math.max(p[1] or p[2], p[2] or p[1]) } end
+    if not in_now[k(p)] then
+      out[#out + 1] = { math.min(p[1] or p[2], p[2] or p[1]), math.max(p[1] or p[2], p[2] or p[1]) }
+    end
   end
   for _, p in ipairs(now) do
     if not in_old[k(p)] then out[#out + 1] = { p[1], p[2] } end
@@ -405,8 +433,12 @@ local function redetect(buf, st, md, lo, hi, want)
   local fresh, prev, plo, phi
   for _ = 1, 32 do
     if md then
-      while lo > 0 and not blank(buf, lo - 1) do lo = lo - 1 end
-      while hi < last and not blank(buf, hi + 1) do hi = hi + 1 end
+      while lo > 0 and not blank(buf, lo - 1) do
+        lo = lo - 1
+      end
+      while hi < last and not blank(buf, hi + 1) do
+        hi = hi + 1
+      end
     end
     local wlo, whi = lo, hi
     for _, n in ipairs(st.nodes) do
@@ -415,7 +447,9 @@ local function redetect(buf, st, md, lo, hi, want)
       end
     end
     for _, p in ipairs(st.pairs) do -- `$$` blocks, also empty ones (no node)
-      if p[1] <= hi and p[2] >= lo then wlo, whi = math.min(wlo, p[1]), math.max(whi, p[2]) end
+      if p[1] <= hi and p[2] >= lo then
+        wlo, whi = math.min(wlo, p[1]), math.max(whi, p[2])
+      end
     end
     local info
     if md and not has_dollar(buf, wlo, whi) then
@@ -444,12 +478,16 @@ local function redetect(buf, st, md, lo, hi, want)
   for _, n in ipairs(st.nodes) do
     if n.range.erow < lo or n.range.srow > hi then out[#out + 1] = n end
   end
-  for _, n in ipairs(copy(fresh)) do out[#out + 1] = n end
+  for _, n in ipairs(copy(fresh)) do
+    out[#out + 1] = n
+  end
   table.sort(out, detect.before)
   st.nodes = out
   if partial then
     st.stale = rows.add(st.stale, lo, hi)
-    for _, w in ipairs(want) do st.stale = rows.sub(st.stale, w[1], w[2]) end
+    for _, w in ipairs(want) do
+      st.stale = rows.sub(st.stale, w[1], w[2])
+    end
   else
     st.stale = rows.sub(st.stale, lo, hi)
   end
@@ -475,8 +513,19 @@ function M.detect(buf, want)
   local st = states[buf]
   if not st or st.lang ~= lang then
     if st then M.forget(buf) end
-    st = { pairs = {}, edits = {}, full = true, has_error = false, tick = -1, lang = lang, stale = {},
-      touched = {}, dropped = false, pending = false, force_sync = false }
+    st = {
+      pairs = {},
+      edits = {},
+      full = true,
+      has_error = false,
+      tick = -1,
+      lang = lang,
+      stale = {},
+      touched = {},
+      dropped = false,
+      pending = false,
+      force_sync = false,
+    }
     states[buf] = st
   end
   local ok, parser = pcall(vim.treesitter.get_parser, buf, lang, { error = false })
@@ -558,27 +607,41 @@ function M.detect(buf, want)
   end
   if want then
     for _, w in ipairs(want) do -- stale rows that are wanted now
-      for _, s in ipairs(rows.clip(st.stale, w[1], w[2])) do need = rows.add(need, s[1], s[2]) end
+      for _, s in ipairs(rows.clip(st.stale, w[1], w[2])) do
+        need = rows.add(need, s[1], s[2])
+      end
     end
     if large or changed then
       -- bounded: the wanted rows of `need`, whole changed pairs that touch the view
       local bounded = {}
       for _, w in ipairs(want) do
-        for _, s in ipairs(rows.clip(need, w[1], w[2])) do bounded = rows.add(bounded, s[1], s[2]) end
+        for _, s in ipairs(rows.clip(need, w[1], w[2])) do
+          bounded = rows.add(bounded, s[1], s[2])
+        end
       end
       for _, p in ipairs(changed or {}) do
         local seen = false
-        for _, w in ipairs(want) do seen = seen or (p[1] <= w[2] and p[2] >= w[1]) end
-        if seen then bounded = rows.add(bounded, p[1], p[2]) else need = rows.add(need, p[1], p[2]) end
+        for _, w in ipairs(want) do
+          seen = seen or (p[1] <= w[2] and p[2] >= w[1])
+        end
+        if seen then
+          bounded = rows.add(bounded, p[1], p[2])
+        else
+          need = rows.add(need, p[1], p[2])
+        end
       end
-      for _, s in ipairs(need) do st.stale = rows.add(st.stale, s[1], s[2]) end
+      for _, s in ipairs(need) do
+        st.stale = rows.add(st.stale, s[1], s[2])
+      end
       need = bounded
       M.stats[large and "large" or "dollar"] = (M.stats[large and "large" or "dollar"] or 0) + 1
     end
   else
     if large then return full(buf, st, lang, "large") end
     if changed then return full(buf, st, lang, "dollar") end
-    for _, s in ipairs(st.stale) do need = rows.add(need, s[1], s[2]) end
+    for _, s in ipairs(st.stale) do
+      need = rows.add(need, s[1], s[2])
+    end
     if rows.count(need) > math.max(400, last / 2) then return full(buf, st, lang, "large") end
   end
   if #need == 0 then

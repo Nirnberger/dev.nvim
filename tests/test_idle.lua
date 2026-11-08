@@ -21,24 +21,34 @@ local stubs = {
   { require("inkmath.term.tmux"), "in_tmux", function() return false end },
   { require("inkmath.term.cells"), "cell_size", function() return { w = 10, h = 20 } end },
   { render, "available", function() return { mathjax = false, tectonic = true } end },
-  { render, "render", function(n, ctx, cb)
-    local key = cache.key(n, ctx, "mathjax")
-    vim.schedule(function()
-      rendered[key] = true
-      cb(stub_img(key))
-    end)
-  end },
-  { render, "cached", function(n, ctx)
-    local key = cache.key(n, ctx, "mathjax")
-    return rendered[key] and stub_img(key) or nil
-  end },
+  {
+    render,
+    "render",
+    function(n, ctx, cb)
+      local key = cache.key(n, ctx, "mathjax")
+      vim.schedule(function()
+        rendered[key] = true
+        cb(stub_img(key))
+      end)
+    end,
+  },
+  {
+    render,
+    "cached",
+    function(n, ctx)
+      local key = cache.key(n, ctx, "mathjax")
+      return rendered[key] and stub_img(key) or nil
+    end,
+  },
   { vim, "notify", function() end },
 }
 local saved, bufs = {}, {}
 
 local function big(n)
   local lines = { "\\documentclass{article}", "\\begin{document}" }
-  for i = 1, n do lines[#lines + 1] = ("Line %d $x_{%d}$ text."):format(i, i) end
+  for i = 1, n do
+    lines[#lines + 1] = ("Line %d $x_{%d}$ text."):format(i, i)
+  end
   lines[#lines + 1] = "\\end{document}"
   local b = h.buf(lines, "tex")
   bufs[#bufs + 1] = b
@@ -50,7 +60,10 @@ end
 T["idle"] = MiniTest.new_set({
   hooks = {
     pre_case = function()
-      for i, s in ipairs(stubs) do saved[i] = s[1][s[2]]; s[1][s[2]] = s[3] end
+      for i, s in ipairs(stubs) do
+        saved[i] = s[1][s[2]]
+        s[1][s[2]] = s[3]
+      end
       rendered = {}
       images._reset()
       saved.lines = vim.o.lines
@@ -66,7 +79,9 @@ T["idle"] = MiniTest.new_set({
       bufs = {}
       idle.cancel("t")
       images.evict(0, {})
-      for i, s in ipairs(stubs) do s[1][s[2]] = saved[i] end
+      for i, s in ipairs(stubs) do
+        s[1][s[2]] = saved[i]
+      end
       c.reset()
       images._reset()
       vim.o.lines = saved.lines
@@ -77,14 +92,20 @@ local I = T["idle"]
 
 I["idle runs only when idle"] = function()
   local n = 0
-  idle.run("t", function() n = n + 1; return n < 3 end, { delay_ms = 10 })
+  idle.run("t", function()
+    n = n + 1
+    return n < 3
+  end, { delay_ms = 10 })
   vim.wait(200, function() return n == 3 end)
   eq(n, 3)
   eq(idle.running("t"), false)
 end
 I["input postpones a slice"] = function()
   local n = 0
-  idle.run("t", function() n = n + 1; return true end, { delay_ms = 40 })
+  idle.run("t", function()
+    n = n + 1
+    return true
+  end, { delay_ms = 40 })
   for _ = 1, 6 do
     vim.api.nvim_exec_autocmds("CursorMoved", {})
     vim.wait(15, function() return false end)
@@ -97,7 +118,10 @@ end
 I["attach returns before refresh"] = function()
   local b = big(5)
   local orig, calls = core.refresh, 0
-  core.refresh = function(...) calls = calls + 1; return orig(...) end
+  core.refresh = function(...)
+    calls = calls + 1
+    return orig(...)
+  end
   local ok = pcall(function()
     core.attach(b)
     eq(calls, 0)
@@ -125,7 +149,9 @@ local function visible_placed(b)
   local top, bot = visible_rows()
   local want, placed = 0, 0
   local at = {}
-  for _, e in pairs(state.get(b).nodes) do at[e.node.range.srow] = true end
+  for _, e in pairs(state.get(b).nodes) do
+    at[e.node.range.srow] = true
+  end
   for r = top, bot do
     if (vim.api.nvim_buf_get_lines(b, r, r + 1, false)[1] or ""):find("$", 1, true) then
       want = want + 1
@@ -145,8 +171,11 @@ end
 -- final review #1: the fill only warms the disk cache; placements stay near the
 -- windows, so resident images respect max_images and ids never run out
 I["fill places nothing off-screen: resident images stay within max_images"] = function()
-  c.setup({ max_images = 100, image_ids = { span = 200, per_instance = false },
-    fill = { rows_per_step = 300, max_jobs = 50 } })
+  c.setup({
+    max_images = 100,
+    image_ids = { span = 200, per_instance = false },
+    fill = { rows_per_step = 300, max_jobs = 50 },
+  })
   local b = big(1000)
   core.attach(b, { sync = true })
   eq(filled(b), "done")
@@ -168,7 +197,9 @@ I["fill places nothing off-screen: resident images stay within max_images"] = fu
   local top_row = 2 -- "Line 1 $x_{1}$ text."
   eq(state.get(b).nodes[next(state.get(b).nodes)] ~= nil, true)
   local rows_placed = {}
-  for _, e in pairs(state.get(b).nodes) do rows_placed[e.node.range.srow] = true end
+  for _, e in pairs(state.get(b).nodes) do
+    rows_placed[e.node.range.srow] = true
+  end
   eq(rows_placed[top_row], true)
   eq(rows_placed[900] == nil, true) -- far from the window: not placed
 end
@@ -176,7 +207,10 @@ I["keep_screens bounds the placements around the window"] = function()
   c.setup({ keep_screens = 1, fill = { enabled = false } })
   local b = big(600)
   core.attach(b, { sync = true })
-  vim.wait(2000, function() local w, p = visible_placed(b); return p == w end, 10)
+  vim.wait(2000, function()
+    local w, p = visible_placed(b)
+    return p == w
+  end, 10)
   local h = vim.api.nvim_win_get_height(0)
   vim.api.nvim_win_set_cursor(0, { 300, 0 })
   refresh_settled(b)
@@ -222,7 +256,9 @@ I["fill detects rows a large paste left stale"] = function()
   local b = big(50)
   core.attach(b, { sync = true })
   local paste = {}
-  for i = 1, 2000 do paste[i] = ("Pasted %d $p_{%d}$."):format(i, i) end
+  for i = 1, 2000 do
+    paste[i] = ("Pasted %d $p_{%d}$."):format(i, i)
+  end
   vim.api.nvim_buf_set_lines(b, 40, 40, false, paste)
   vim.g._ts_force_sync_parsing = true
   core.refresh(b)
@@ -244,7 +280,10 @@ I["fill.enabled = false stops a running pass"] = function()
 end
 I["WinScrolled counts as input"] = function()
   local n = 0
-  idle.run("t", function() n = n + 1; return true end, { delay_ms = 40 })
+  idle.run("t", function()
+    n = n + 1
+    return true
+  end, { delay_ms = 40 })
   for _ = 1, 6 do
     vim.api.nvim_exec_autocmds("WinScrolled", {})
     vim.wait(15, function() return false end)

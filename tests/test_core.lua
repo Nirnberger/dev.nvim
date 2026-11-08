@@ -27,9 +27,7 @@ local function transmits(list)
   return out
 end
 
-local function marks(buf)
-  return vim.api.nvim_buf_get_extmarks(buf, placer.ns, 0, -1, { details = true })
-end
+local function marks(buf) return vim.api.nvim_buf_get_extmarks(buf, placer.ns, 0, -1, { details = true }) end
 
 local function inline_marks(buf)
   return vim.tbl_filter(function(m) return m[4].virt_text_pos == "inline" end, marks(buf))
@@ -47,7 +45,9 @@ end
 --- transmitted earlier in this file; retransmits of resident ids do not count
 local function new_ids(before)
   local seen = {}
-  for _, id in ipairs(before) do seen[id] = true end
+  for _, id in ipairs(before) do
+    seen[id] = true
+  end
   local out = {}
   for _, id in ipairs(transmits(history)) do
     if not seen[id] then
@@ -91,9 +91,15 @@ T["cases"] = MiniTest.new_set({
       if orig.cached then
         require("inkmath.render").cached, orig.cached = orig.cached, nil
       end
-      if orig.mode then core._mode, orig.mode = orig.mode, nil end
-      if orig.start then require("inkmath.render.mathjax").start, orig.start = orig.start, nil end
-      if orig.preview then require("inkmath.view.cursor").preview, orig.preview = orig.preview, nil end
+      if orig.mode then
+        core._mode, orig.mode = orig.mode, nil
+      end
+      if orig.start then
+        require("inkmath.render.mathjax").start, orig.start = orig.start, nil
+      end
+      if orig.preview then
+        require("inkmath.view.cursor").preview, orig.preview = orig.preview, nil
+      end
       config.setup({})
       core._reset_notified()
     end,
@@ -188,7 +194,10 @@ T["cases"]["inline promote"] = function()
   vim.wait(15000, function() return #inline_marks(buf) == 1 and #vl() == 1 end, 20)
   eq(#inline_marks(buf), 1)
   eq(#vl(), 1)
-  local promoted = vim.tbl_filter(function(k) return k:match(":promoted$") ~= nil end, vim.tbl_keys(state.get(buf).nodes))
+  local promoted = vim.tbl_filter(
+    function(k) return k:match(":promoted$") ~= nil end,
+    vim.tbl_keys(state.get(buf).nodes)
+  )
   eq(#promoted, 1)
 end
 
@@ -349,7 +358,9 @@ end
 
 T["cases"]["cursor reveal works while frozen"] = function()
   local buf = doc_buf()
-  local function at(row) return vim.tbl_filter(function(m) return m[2] == row end, inline_marks(buf)) end
+  local function at(row)
+    return vim.tbl_filter(function(m) return m[2] == row end, inline_marks(buf))
+  end
   eq(#at(38), 1) -- `$\$5 + x$`
   vim.api.nvim_buf_set_lines(buf, 9, 9, false, { "a lone $ here" }) -- everything shifts down
   core.refresh(buf)
@@ -479,8 +490,12 @@ T["cases"]["eviction keeps the preview image"] = function()
   render.render = function(_, _, cb) cb({ key = "preview-key", path = png, cols = 2, rows = 1, ratio = 0.5 }) end
   local buf = setup_buf({ "plain text", "more" })
   core.attach(buf, { sync = true })
-  cursor.preview(buf, vim.api.nvim_get_current_win(), { id = "p", kind = "inline", src = "p",
-    range = { srow = 0, scol = 0, erow = 0, ecol = 2 } }, {})
+  cursor.preview(
+    buf,
+    vim.api.nvim_get_current_win(),
+    { id = "p", kind = "inline", src = "p", range = { srow = 0, scol = 0, erow = 0, ecol = 2 } },
+    {}
+  )
   local id = require("inkmath.term.images").id("preview-key")
   assert(id)
   config.setup({ max_images = 1 })
@@ -515,7 +530,10 @@ T["cases"]["a cached formula is read from the cache once per refresh"] = functio
   local cache = require("inkmath.render.cache")
   placer.clear_all(buf) -- placed again from the cache by the next refresh
   local get, n = cache.get, 0
-  cache.get = function(...) n = n + 1 return get(...) end
+  cache.get = function(...)
+    n = n + 1
+    return get(...)
+  end
   local ok, e = pcall(core.refresh, buf)
   local hits = n
   cache.get = get
@@ -572,8 +590,12 @@ T["cases"]["retransmit with the preview PNG gone closes the preview"] = function
   render.render = function(_, _, cb) cb({ key = "gone-preview", path = png, cols = 2, rows = 1, ratio = 0.5 }) end
   local buf = setup_buf({ "plain text", "more" })
   core.attach(buf, { sync = true })
-  cursor.preview(buf, vim.api.nvim_get_current_win(), { id = "p", kind = "inline", src = "p",
-    range = { srow = 0, scol = 0, erow = 0, ecol = 2 } }, {})
+  cursor.preview(
+    buf,
+    vim.api.nvim_get_current_win(),
+    { id = "p", kind = "inline", src = "p", range = { srow = 0, scol = 0, erow = 0, ecol = 2 } },
+    {}
+  )
   eq(cursor.preview_keys(), { "gone-preview" })
   os.remove(png)
   require("inkmath.term.images").retransmit_all()
@@ -597,7 +619,9 @@ T["cases"]["stale nodes not rendered"] = function()
   local srcs = {}
   stub_render(srcs)
   local lines = { "\\documentclass{article}", "\\begin{document}", "a $x$ b $y$", "" }
-  for i = 1, 4000 do lines[#lines + 1] = ("Prose %d with $q_{%d}$ in it."):format(i, i) end
+  for i = 1, 4000 do
+    lines[#lines + 1] = ("Prose %d with $q_{%d}$ in it."):format(i, i)
+  end
   lines[#lines + 1] = "\\end{document}"
   local buf = setup_buf(lines, "tex")
   core.attach(buf, { sync = true })
@@ -633,7 +657,8 @@ local function rewrite_aux(d, num, secs)
   vim.uv.fs_utime(p, st.atime.sec, st.mtime.sec + secs)
 end
 
-local EQ_DOC = { "x", "\\begin{equation}", "  a \\label{eq:a}", "\\end{equation}", "\\begin{equation}", "  b", "\\end{equation}" }
+local EQ_DOC =
+  { "x", "\\begin{equation}", "  a \\label{eq:a}", "\\end{equation}", "\\begin{equation}", "  b", "\\end{equation}" }
 
 T["cases"]["vimtex: labeled equation renders with its aux number"] = function()
   local srcs = {}
@@ -732,7 +757,10 @@ T["cases"]["vimtex math conceal is cleared on attach and after Syntax"] = functi
   local vimtex = require("inkmath.vimtex")
   local calls = 0
   orig.clear_conceal = vimtex.clear_math_conceal
-  vimtex.clear_math_conceal = function() calls = calls + 1 return true end
+  vimtex.clear_math_conceal = function()
+    calls = calls + 1
+    return true
+  end
   local ok, err = pcall(function()
     local buf = setup_buf({ "a $x$ b" }, "tex")
     core.attach(buf, { sync = true })
@@ -789,7 +817,13 @@ local function stub_render_rows(rows)
   local cache = require("inkmath.render.cache")
   orig.render = render.render
   render.render = function(n, ctx, cb)
-    cb({ key = cache.key(n, ctx, "mathjax"), path = "/stub.png", cols = 2, rows = n.kind == "inline" and 1 or rows, ratio = 0.5 })
+    cb({
+      key = cache.key(n, ctx, "mathjax"),
+      path = "/stub.png",
+      cols = 2,
+      rows = n.kind == "inline" and 1 or rows,
+      ratio = 0.5,
+    })
   end
 end
 

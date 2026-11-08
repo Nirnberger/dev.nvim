@@ -1,8 +1,11 @@
 local M = {}
 
 local SKIP = {
-  comment = true, line_comment = true, block_comment = true,
-  verbatim_environment = true, listing_environment = true,
+  comment = true,
+  line_comment = true,
+  block_comment = true,
+  verbatim_environment = true,
+  listing_environment = true,
 }
 
 local QUERY = [[
@@ -69,8 +72,12 @@ function M.detect(bufnr, srow, erow)
   for id, node in q:iter_captures(tree:root(), bufnr, srow or 0, erow and erow + 1 or -1) do
     local kind = q.captures[id]
     local sr, sc, er, ec = node:range()
-    if sr <= hi and er >= lo and not excluded(node)
-      and not in_verb(vim.api.nvim_buf_get_lines(bufnr, sr, sr + 1, false)[1] or "", sc) then
+    if
+      sr <= hi
+      and er >= lo
+      and not excluded(node)
+      and not in_verb(vim.api.nvim_buf_get_lines(bufnr, sr, sr + 1, false)[1] or "", sc)
+    then
       local text = vim.treesitter.get_node_text(node, bufnr)
       local src, env = text, nil
       if kind == "block" then
@@ -85,7 +92,10 @@ function M.detect(bufnr, srow, erow)
         end
       end
       out[#out + 1] = {
-        id = node_id(kind, env, src), kind = kind, src = src, env = env,
+        id = node_id(kind, env, src),
+        kind = kind,
+        src = src,
+        env = env,
         range = { srow = sr, scol = sc, erow = er, ecol = ec },
       }
     end

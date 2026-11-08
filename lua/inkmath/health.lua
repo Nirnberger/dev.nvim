@@ -61,8 +61,15 @@ local function conceal_lines(out)
         if vim.api.nvim_win_get_config(w).relative == "" and cl < 2 then
           local why = c == false and "inkmath does not manage it (conceal = false): set it to 2, e.g. in an ftplugin"
             or ("inkmath sets conceal.level = %d"):format(c.level)
-          out[#out + 1] = { level = "warn",
-            msg = ("'conceallevel' %d < 2 in window %d (buffer %d): concealed source shows next to the images; %s"):format(cl, w, b, why) }
+          out[#out + 1] = {
+            level = "warn",
+            msg = ("'conceallevel' %d < 2 in window %d (buffer %d): concealed source shows next to the images; %s"):format(
+              cl,
+              w,
+              b,
+              why
+            ),
+          }
         end
       end
     end
@@ -78,7 +85,11 @@ function M._interop()
     if p.loaded() then
       local on = p.latex_on()
       if on == nil then
-        out[#out + 1] = { level = "warn", msg = p.name .. " is loaded; make sure latex is off (inkmath renders the math)", fix = p.fix }
+        out[#out + 1] = {
+          level = "warn",
+          msg = p.name .. " is loaded; make sure latex is off (inkmath renders the math)",
+          fix = p.fix,
+        }
       elseif on then
         out[#out + 1] = { level = "warn", msg = p.name .. " renders LaTeX math too: turn it off there", fix = p.fix }
       else
@@ -88,12 +99,19 @@ function M._interop()
     end
   end
   if package.loaded["image"] then
-    out[#out + 1] = { level = "info", msg = "image.nvim deletes every terminal image (d=a) when it clears its own;"
-      .. " inkmath sends its images again on FocusGained and VimResized" }
+    out[#out + 1] = {
+      level = "info",
+      msg = "image.nvim deletes every terminal image (d=a) when it clears its own;"
+        .. " inkmath sends its images again on FocusGained and VimResized",
+    }
   end
   if #managers > 0 and conceal_managed() then
-    out[#out + 1] = { level = "info", msg = table.concat(managers, " and ") .. (#managers > 1 and " set" or " sets")
-      .. " 'conceallevel' too; consider `conceal = false` so inkmath leaves it to them" }
+    out[#out + 1] = {
+      level = "info",
+      msg = table.concat(managers, " and ")
+        .. (#managers > 1 and " set" or " sets")
+        .. " 'conceallevel' too; consider `conceal = false` so inkmath leaves it to them",
+    }
   end
   conceal_lines(out)
   return out
@@ -125,7 +143,8 @@ function M.check()
     -- WezTerm and Konsole draw kitty graphics but not Unicode placeholders (the
     -- protocol inkmath uses), so they are not supported either
     local partial = vim.env.TERM_PROGRAM == "WezTerm" and "WezTerm"
-      or (vim.env.KONSOLE_VERSION or "") ~= "" and "Konsole" or nil
+      or (vim.env.KONSOLE_VERSION or "") ~= "" and "Konsole"
+      or nil
     if partial then
       h.error(partial .. " has kitty graphics but no Unicode placeholders, which inkmath needs (use Ghostty or kitty)")
     else

@@ -51,9 +51,7 @@ end
 
 ---@param buf integer
 function M.clear_all(buf)
-  if vim.api.nvim_buf_is_valid(buf) then
-    vim.api.nvim_buf_clear_namespace(buf, M.ns, 0, -1)
-  end
+  if vim.api.nvim_buf_is_valid(buf) then vim.api.nvim_buf_clear_namespace(buf, M.ns, 0, -1) end
   state.get(buf).nodes = {}
 end
 

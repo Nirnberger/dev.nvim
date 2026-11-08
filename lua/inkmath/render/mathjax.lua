@@ -29,9 +29,7 @@ end
 
 --- the worker's argv from `node_cmd` (nil: node not executable)
 ---@return string[]|nil
-function M._argv()
-  return require("inkmath.render").argv(require("inkmath.config").get().node_cmd, worker_path)
-end
+function M._argv() return require("inkmath.render").argv(require("inkmath.config").get().node_cmd, worker_path) end
 
 local avail ---@type {cmd: string, ok: boolean}|nil memoized (exepath, fs_stat per attach)
 
@@ -51,9 +49,7 @@ function M._reset_available() avail = nil end
 local function stop_timer(entry)
   if entry.timer then
     entry.timer:stop()
-    if not entry.timer:is_closing() then
-      entry.timer:close()
-    end
+    if not entry.timer:is_closing() then entry.timer:close() end
     entry.timer = nil
   end
 end
@@ -63,24 +59,16 @@ local function fail_all(state, msg)
   state.pending = {}
   for _, entry in pairs(pending) do
     stop_timer(entry)
-    vim.schedule(function()
-      pcall(entry.cb, nil, msg)
-    end)
+    vim.schedule(function() pcall(entry.cb, nil, msg) end)
   end
 end
 
 local function dispatch(state, line)
-  if line:match("^%s*$") then
-    return
-  end
+  if line:match("^%s*$") then return end
   local ok, res = pcall(vim.json.decode, line)
-  if not ok or type(res) ~= "table" then
-    return
-  end
+  if not ok or type(res) ~= "table" then return end
   local entry = state.pending[res.id]
-  if not entry then
-    return
-  end
+  if not entry then return end
   state.pending[res.id] = nil
   stop_timer(entry)
   if res.ok then
@@ -94,9 +82,7 @@ end
 ---@param slot inkmath.WorkerSlot
 ---@return boolean
 local function spawn(slot)
-  if slot.cur then
-    return true
-  end
+  if slot.cur then return true end
   if slot.spawns > MAX_RESTARTS then -- first spawn + 3 restarts
     return false
   end
@@ -104,16 +90,12 @@ local function spawn(slot)
   local ok, proc = pcall(vim.system, M._argv(), {
     stdin = true,
     stdout = function(_, data)
-      if not data then
-        return
-      end
+      if not data then return end
       state.buf = state.buf .. data
       local lines = {}
       while true do
         local nl = state.buf:find("\n", 1, true)
-        if not nl then
-          break
-        end
+        if not nl then break end
         lines[#lines + 1] = state.buf:sub(1, nl - 1)
         state.buf = state.buf:sub(nl + 1)
       end
@@ -128,15 +110,11 @@ local function spawn(slot)
     stderr = false,
   }, function()
     vim.schedule(function()
-      if slot.cur == state then
-        slot.cur = nil
-      end
+      if slot.cur == state then slot.cur = nil end
       fail_all(state, "worker exited")
     end)
   end)
-  if not ok then
-    return false
-  end
+  if not ok then return false end
   state.proc = proc
   state.slot = slot
   slot.spawns = slot.spawns + 1
@@ -153,19 +131,13 @@ end
 --- Make sure one worker runs (the rest of the pool starts on demand, see pick).
 ---@return boolean any worker is running
 function M.start()
-  if not M.available() then
-    return false
-  end
+  if not M.available() then return false end
   ensure_slots()
   for i = 1, pool_size() do
-    if slots[i].cur then
-      return true
-    end
+    if slots[i].cur then return true end
   end
   for i = 1, pool_size() do
-    if spawn(slots[i]) then
-      return true
-    end
+    if spawn(slots[i]) then return true end
   end
   return false
 end
@@ -173,15 +145,11 @@ end
 --- Start every worker of the pool (those not running and under their restart cap).
 ---@return boolean any worker is running
 function M.start_all()
-  if not M.available() then
-    return false
-  end
+  if not M.available() then return false end
   ensure_slots()
   local any = false
   for i = 1, pool_size() do
-    if spawn(slots[i]) then
-      any = true
-    end
+    if spawn(slots[i]) then any = true end
   end
   return any
 end
@@ -211,9 +179,7 @@ local function pick()
   if not best or best_load > 0 then
     ensure_slots()
     for i = 1, pool_size() do
-      if not slots[i].cur and spawn(slots[i]) then
-        return slots[i].cur
-      end
+      if not slots[i].cur and spawn(slots[i]) then return slots[i].cur end
     end
   end
   return best
@@ -231,30 +197,20 @@ local function send(state, req, cb)
   entry.timer = timer
   timer:start(M.timeout_ms or require("inkmath.config").get().timeouts.mathjax_ms, 0, function()
     vim.schedule(function()
-      if state.pending[id] ~= entry then
-        return
-      end
+      if state.pending[id] ~= entry then return end
       state.pending[id] = nil
       stop_timer(entry)
       -- a hung worker is useless: kill it (counts toward the restart cap on next start)
-      if state.slot.cur == state then
-        state.slot.cur = nil
-      end
-      pcall(function()
-        state.proc:kill("sigkill")
-      end)
+      if state.slot.cur == state then state.slot.cur = nil end
+      pcall(function() state.proc:kill("sigkill") end)
       pcall(cb, nil, "worker timeout")
     end)
   end)
-  local ok = pcall(function()
-    state.proc:write(vim.json.encode(req) .. "\n")
-  end)
+  local ok = pcall(function() state.proc:write(vim.json.encode(req) .. "\n") end)
   if not ok and state.pending[id] then
     state.pending[id] = nil
     stop_timer(entry)
-    vim.schedule(function()
-      pcall(cb, nil, "worker exited")
-    end)
+    vim.schedule(function() pcall(cb, nil, "worker exited") end)
   end
 end
 
@@ -262,17 +218,25 @@ end
 --- the input/output setup and the JIT are done before the first real request.
 --- The other workers of the pool start when requests queue up. Idempotent.
 function M.warm()
-  if not M.start() then
-    return
-  end
+  if not M.start() then return end
   for i = 1, pool_size() do
     local st = slots[i] and slots[i].cur
     if st and not st.warmed then
       st.warmed = true
       local out = vim.fn.tempname() .. ".png"
-      send(st, { tex = "x^2", display = false, macros = {}, color = "#000000", cell_w = 10, cell_h = 20,
-        container_px = 100, x_height = 0.45, baseline = 0.78, scale = 1, out = out },
-        function() pcall(vim.uv.fs_unlink, out) end)
+      send(st, {
+        tex = "x^2",
+        display = false,
+        macros = {},
+        color = "#000000",
+        cell_w = 10,
+        cell_h = 20,
+        container_px = 100,
+        x_height = 0.45,
+        baseline = 0.78,
+        scale = 1,
+        out = out,
+      }, function() pcall(vim.uv.fs_unlink, out) end)
     end
   end
 end
@@ -280,9 +244,7 @@ end
 ---@return integer|nil pid of the first running worker
 function M.pid()
   for i = 1, #slots do
-    if slots[i].cur then
-      return slots[i].cur.proc.pid
-    end
+    if slots[i].cur then return slots[i].cur.proc.pid end
   end
   return nil
 end
@@ -301,9 +263,7 @@ end
 function M.pids()
   local out = {}
   for i = 1, #slots do
-    if slots[i].cur then
-      out[#out + 1] = slots[i].cur.proc.pid
-    end
+    if slots[i].cur then out[#out + 1] = slots[i].cur.proc.pid end
   end
   return out
 end
@@ -314,9 +274,7 @@ end
 function M.request(req, cb)
   local state = M.start() and pick()
   if not state then
-    vim.schedule(function()
-      pcall(cb, nil, "worker unavailable")
-    end)
+    vim.schedule(function() pcall(cb, nil, "worker unavailable") end)
     return
   end
   send(state, req, cb)
@@ -329,12 +287,8 @@ function M.shutdown()
     local state = slot.cur
     slot.cur = nil
     if state then
-      pcall(function()
-        state.proc:write(nil)
-      end)
-      pcall(function()
-        state.proc:kill("sigterm")
-      end)
+      pcall(function() state.proc:write(nil) end)
+      pcall(function() state.proc:kill("sigterm") end)
       fail_all(state, "worker shut down")
     end
   end

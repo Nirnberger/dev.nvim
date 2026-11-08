@@ -47,9 +47,11 @@ end
 ---@param ext string
 ---@return string|nil
 function M._vim_get_file(buf, ext)
-  local ok, res = pcall(vim.api.nvim_buf_call, buf, function()
-    return vim.fn.eval(("b:vimtex.compiler.get_file('%s')"):format(ext))
-  end)
+  local ok, res = pcall(
+    vim.api.nvim_buf_call,
+    buf,
+    function() return vim.fn.eval(("b:vimtex.compiler.get_file('%s')"):format(ext)) end
+  )
   if ok and type(res) == "string" and res ~= "" then return res end
   return nil
 end
@@ -82,9 +84,7 @@ local function candidates(st, ext)
   -- latexmk's _output_roots: env, aux_dir, out_dir, root (no nil holes for ipairs)
   local dirs = { vim.env.VIMTEX_OUTPUT_DIRECTORY or "", comp.aux_dir or "", comp.out_dir or "", root }
   for _, dir in ipairs(dirs) do
-    if type(dir) == "string" and dir ~= "" then
-      out[#out + 1] = abs(dir .. "/" .. job .. "." .. ext, root)
-    end
+    if type(dir) == "string" and dir ~= "" then out[#out + 1] = abs(dir .. "/" .. job .. "." .. ext, root) end
   end
   return out
 end
@@ -120,7 +120,8 @@ end
 -- unchanged) and the global is restored right after.
 -- `styles` and `spacing` also cover text mode (\textbf, \quad): vimtex has one key
 -- for both.
-M.MATH_CONCEAL_KEYS = { "math_bounds", "math_delimiters", "math_fracs", "math_super_sub", "math_symbols", "greek", "styles", "spacing" }
+M.MATH_CONCEAL_KEYS =
+  { "math_bounds", "math_delimiters", "math_fracs", "math_super_sub", "math_symbols", "greek", "styles", "spacing" }
 
 M._reloading = {} ---@type table<integer, true> buffers whose syntax inkmath is reloading
 
@@ -134,7 +135,9 @@ function M.clear_math_conceal(buf)
     local orig = vim.g.vimtex_syntax_conceal
     if type(orig) ~= "table" then return false end
     local patched = vim.deepcopy(orig)
-    for _, k in ipairs(M.MATH_CONCEAL_KEYS) do patched[k] = 0 end
+    for _, k in ipairs(M.MATH_CONCEAL_KEYS) do
+      patched[k] = 0
+    end
     M._reloading[buf] = true
     vim.g.vimtex_syntax_conceal = patched
     local rok, rerr = pcall(vim.api.nvim_buf_call, buf, function() vim.cmd("let &l:syntax = &l:syntax") end)

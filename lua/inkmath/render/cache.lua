@@ -73,7 +73,9 @@ local function sha(s)
   local h = hashed[s]
   if h then return h end
   h = vim.fn.sha256(s)
-  if nhashed >= MAX_HASHED then hashed, nhashed = {}, 0 end
+  if nhashed >= MAX_HASHED then
+    hashed, nhashed = {}, 0
+  end
   hashed[s], nhashed = h, nhashed + 1
   return h
 end
@@ -106,26 +108,18 @@ end
 
 ---@param key string
 ---@return string
-function M.path(key)
-  return dir() .. "/" .. key .. ".png"
-end
+function M.path(key) return dir() .. "/" .. key .. ".png" end
 
-local function meta_path(key)
-  return dir() .. "/" .. key .. ".json"
-end
+local function meta_path(key) return dir() .. "/" .. key .. ".json" end
 
 local PNG_SIG = "\137PNG\r\n\26\n"
 
 --- the file is at least a PNG signature (a truncated or foreign file is a miss)
 local function png_ok(path)
   local st = vim.uv.fs_stat(path)
-  if not st or st.size <= 8 then
-    return false
-  end
+  if not st or st.size <= 8 then return false end
   local f = io.open(path, "rb")
-  if not f then
-    return false
-  end
+  if not f then return false end
   local head = f:read(8)
   f:close()
   return head == PNG_SIG
@@ -148,13 +142,9 @@ function M.get(key)
     end
   else
     local meta = meta_path(key)
-    if not (vim.uv.fs_stat(meta) and png_ok(png)) then
-      return nil
-    end
+    if not (vim.uv.fs_stat(meta) and png_ok(png)) then return nil end
     local ok
-    ok, data = pcall(function()
-      return vim.json.decode(table.concat(vim.fn.readfile(meta), "\n"))
-    end)
+    ok, data = pcall(function() return vim.json.decode(table.concat(vim.fn.readfile(meta), "\n")) end)
     if not ok or type(data) ~= "table" or not data.cols or not data.rows or type(data.ratio) ~= "number" then
       return nil
     end
@@ -191,7 +181,9 @@ M.epoch = 0
 ---@return integer files that were in it
 function M.clear()
   local d, n = dir(), 0
-  for _ in vim.fs.dir(d) do n = n + 1 end
+  for _ in vim.fs.dir(d) do
+    n = n + 1
+  end
   M.epoch = M.epoch + 1
   metas = {}
   local trash = ("%s.deleted.%d.%d"):format(d, vim.uv.os_getpid(), vim.uv.hrtime())
@@ -213,14 +205,18 @@ end
 local function walk(cb)
   local d = dir()
   vim.uv.fs_scandir(d, function(err, handle)
-    if err or not handle then return vim.schedule(function() cb({}) end) end
+    if err or not handle then
+      return vim.schedule(function() cb({}) end)
+    end
     local names = {}
     while true do
       local name, typ = vim.uv.fs_scandir_next(handle)
       if not name then break end
       if typ == "file" then names[#names + 1] = name end
     end
-    if #names == 0 then return vim.schedule(function() cb({}) end) end
+    if #names == 0 then
+      return vim.schedule(function() cb({}) end)
+    end
     local files, left = {}, #names
     for _, name in ipairs(names) do
       vim.uv.fs_stat(d .. "/" .. name, function(_, st)
@@ -241,7 +237,9 @@ local max_bytes = M.max_bytes
 function M.stats(cb)
   walk(function(files)
     local bytes = 0
-    for _, f in ipairs(files) do bytes = bytes + f.size end
+    for _, f in ipairs(files) do
+      bytes = bytes + f.size
+    end
     cb({ dir = dir(), files = #files, bytes = bytes, max_bytes = max_bytes() })
   end)
 end

@@ -19,9 +19,19 @@ local T = MiniTest.new_set({
 local eq = MiniTest.expect.equality
 
 local function req(i)
-  return { tex = ("x_{%d} + \\frac{%d}{y}"):format(i, i), display = i % 2 == 0, macros = {}, color = "#ffffff",
-    cell_w = 10, cell_h = 20, container_px = 800, x_height = 0.45, baseline = 0.78, scale = 1,
-    out = vim.fn.tempname() .. ".png" }
+  return {
+    tex = ("x_{%d} + \\frac{%d}{y}"):format(i, i),
+    display = i % 2 == 0,
+    macros = {},
+    color = "#ffffff",
+    cell_w = 10,
+    cell_h = 20,
+    container_px = 800,
+    x_height = 0.45,
+    baseline = 0.78,
+    scale = 1,
+    out = vim.fn.tempname() .. ".png",
+  }
 end
 
 --- send n requests; returns the per-request callback counts and results
@@ -106,7 +116,9 @@ T["restart cap is per worker"] = function()
   end
   local counts, results = send(4)
   vim.wait(20000, function() return all_done(counts) end, 5)
-  for i = 1, 4 do eq(results[i].err, nil) end
+  for i = 1, 4 do
+    eq(results[i].err, nil)
+  end
   eq(#mathjax.pids(), 1) -- the first slot stays down, the second never restarted
 end
 

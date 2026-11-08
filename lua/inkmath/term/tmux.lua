@@ -1,15 +1,11 @@
 local M = {}
 
-function M.in_tmux()
-  return (vim.env.TMUX or "") ~= ""
-end
+function M.in_tmux() return (vim.env.TMUX or "") ~= "" end
 
 ---Wrap an escape sequence in tmux's DCS passthrough (inner ESCs doubled).
 ---@param seq string
 ---@return string
-function M.wrap(seq)
-  return "\27Ptmux;" .. seq:gsub("\27", "\27\27") .. "\27\\"
-end
+function M.wrap(seq) return "\27Ptmux;" .. seq:gsub("\27", "\27\27") .. "\27\\" end
 
 --- Value of allow-passthrough at one scope: "g" global, "w" window, "p" pane.
 ---@param scope "g"|"w"|"p"

@@ -2,12 +2,30 @@
 # Install CI tools via `gh release download` (the github.com/.../releases/download URLs are flaky).
 # Usage: scripts/ci-tools.sh [nvim-tag]   (needs GH_TOKEN; nvim-tag e.g. v0.12.0, stable, nightly)
 # Installs tree-sitter, tectonic and ImageMagick 7 (+ghostscript) into ~/.local/bin, neovim into ~/nvim; adds them to $GITHUB_PATH.
+#        scripts/ci-tools.sh lint         installs only StyLua (Linux x86_64)
 set -euo pipefail
 
 NVIM_TAG="${1:-}"
 BIN="$HOME/.local/bin"
 TMP="$(mktemp -d)"
 mkdir -p "$BIN"
+
+verify() { # <sha256> <file>
+  if command -v sha256sum >/dev/null; then echo "$1  $2" | sha256sum -c -
+  else echo "$1  $2" | shasum -a 256 -c -; fi
+}
+
+if [ "$NVIM_TAG" = lint ]; then
+  [ "$(uname -s)-$(uname -m)" = Linux-x86_64 ] || { echo "lint: only Linux x86_64" >&2; exit 1; }
+  SL_ZIP=stylua-linux-x86_64.zip
+  gh release download v2.6.0 -R JohnnyMorganz/StyLua -p "$SL_ZIP" -D "$TMP"
+  verify a485f72bbfa22e4642e77a84b5edc2611a5cab7477b34e2e709dd8f78e919895 "$TMP/$SL_ZIP"
+  unzip -o -q "$TMP/$SL_ZIP" stylua -d "$BIN"
+  chmod +x "$BIN/stylua"
+  [ -z "${GITHUB_PATH:-}" ] || echo "$BIN" >> "$GITHUB_PATH"
+  rm -rf "$TMP"
+  exit 0
+fi
 
 case "$(uname -s)-$(uname -m)" in
   Linux-x86_64)
@@ -26,11 +44,6 @@ case "$(uname -s)-$(uname -m)" in
     ;;
   *) echo "unsupported platform: $(uname -sm)" >&2; exit 1 ;;
 esac
-
-verify() { # <sha256> <file>
-  if command -v sha256sum >/dev/null; then echo "$1  $2" | sha256sum -c -
-  else echo "$1  $2" | shasum -a 256 -c -; fi
-}
 
 # tree-sitter
 gh release download v0.27.2 -R tree-sitter/tree-sitter -p "$TS_ASSET" -D "$TMP"

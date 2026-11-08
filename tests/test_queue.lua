@@ -33,7 +33,9 @@ T["queue"] = MiniTest.new_set({
       render.render = function(n, ctx, cb) calls[#calls + 1] = { node = n, cb = cb, ctx = ctx } end
     end,
     post_case = function()
-      for _, b in ipairs(bufs) do pcall(core.detach, b) end
+      for _, b in ipairs(bufs) do
+        pcall(core.detach, b)
+      end
       bufs = {}
       queue.reset() -- held renders never finish
       require("inkmath.term.images").evict(0, {})
@@ -45,7 +47,9 @@ T["queue"] = MiniTest.new_set({
 
 local function doc(n)
   local lines = {}
-  for i = 1, n do lines[i] = ("Line %d $x_{%d}$ text."):format(i, i) end
+  for i = 1, n do
+    lines[i] = ("Line %d $x_{%d}$ text."):format(i, i)
+  end
   return lines
 end
 
@@ -75,7 +79,9 @@ end
 
 local function range(a, b, step)
   local out = {}
-  for r = a, b, step or 1 do out[#out + 1] = r end
+  for r = a, b, step or 1 do
+    out[#out + 1] = r
+  end
   return out
 end
 

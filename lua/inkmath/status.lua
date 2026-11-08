@@ -26,9 +26,15 @@ function M.collect()
     for _, f in ipairs(ok and fs or {}) do
       if f.error then errors = errors + 1 end
     end
-    attached[#attached + 1] = { buf = b, name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(b), ":~:."),
-      ft = vim.bo[b].filetype, formulas = ok and #fs or 0, errors = errors,
-      placed = vim.tbl_count(state.get(b).nodes), fill = fill.state(b) }
+    attached[#attached + 1] = {
+      buf = b,
+      name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(b), ":~:."),
+      ft = vim.bo[b].filetype,
+      formulas = ok and #fs or 0,
+      errors = errors,
+      placed = vim.tbl_count(state.get(b).nodes),
+      fill = fill.state(b),
+    }
   end
   local start, stop = images.range()
   return {
@@ -47,24 +53,44 @@ local function mb(bytes) return ("%.1f MB"):format(bytes / 1024 / 1024) end
 ---@return string[]
 function M.format(t)
   local yes = function(v) return v and "yes" or "no" end
-  local out = { "inkmath status",
-    ("backend: mathjax %s, tectonic %s"):format(yes(t.backend.mathjax), yes(t.backend.tectonic)) }
+  local out = {
+    "inkmath status",
+    ("backend: mathjax %s, tectonic %s"):format(yes(t.backend.mathjax), yes(t.backend.tectonic)),
+  }
   local ws = {}
-  for _, w in ipairs(t.workers) do ws[#ws + 1] = ("pid %d (%d pending)"):format(w.pid, w.pending) end
+  for _, w in ipairs(t.workers) do
+    ws[#ws + 1] = ("pid %d (%d pending)"):format(w.pid, w.pending)
+  end
   out[#out + 1] = ("workers: %d running%s"):format(#t.workers, #ws > 0 and ": " .. table.concat(ws, ", ") or "")
   local qs = {}
-  for b, q in pairs(t.queue) do qs[#qs + 1] = ("buffer %d: %d queued, %d in flight"):format(b, q.queued, q.inflight) end
+  for b, q in pairs(t.queue) do
+    qs[#qs + 1] = ("buffer %d: %d queued, %d in flight"):format(b, q.queued, q.inflight)
+  end
   table.sort(qs)
   out[#out + 1] = "queue: " .. (#qs > 0 and table.concat(qs, "; ") or "empty")
   local c = t.cache
-  out[#out + 1] = ("cache: %s, %s of %s"):format(c.dir,
-    c.files and ("%d files, %s"):format(c.files, mb(c.bytes)) or "…", mb(c.max_bytes))
-  out[#out + 1] = ("kitty ids: %d..%d, %d resident / max_images %d"):format(t.ids.start, t.ids.stop - 1,
-    t.ids.resident, t.ids.max_images)
+  out[#out + 1] = ("cache: %s, %s of %s"):format(
+    c.dir,
+    c.files and ("%d files, %s"):format(c.files, mb(c.bytes)) or "…",
+    mb(c.max_bytes)
+  )
+  out[#out + 1] = ("kitty ids: %d..%d, %d resident / max_images %d"):format(
+    t.ids.start,
+    t.ids.stop - 1,
+    t.ids.resident,
+    t.ids.max_images
+  )
   if #t.attached == 0 then out[#out + 1] = "attached: none" end
   for _, a in ipairs(t.attached) do
-    out[#out + 1] = ("attached: buffer %d %s (%s): %d formulas, %d placed, %d errors, fill %s"):format(a.buf,
-      a.name ~= "" and a.name or "[No Name]", a.ft, a.formulas, a.placed, a.errors, a.fill)
+    out[#out + 1] = ("attached: buffer %d %s (%s): %d formulas, %d placed, %d errors, fill %s"):format(
+      a.buf,
+      a.name ~= "" and a.name or "[No Name]",
+      a.ft,
+      a.formulas,
+      a.placed,
+      a.errors,
+      a.fill
+    )
   end
   return out
 end
@@ -79,7 +105,9 @@ function M.show(timeout_ms)
     if printed then return end
     printed = true
     local chunks = {}
-    for i, l in ipairs(M.format(t)) do chunks[#chunks + 1] = { (i > 1 and "\n" or "") .. l } end
+    for i, l in ipairs(M.format(t)) do
+      chunks[#chunks + 1] = { (i > 1 and "\n" or "") .. l }
+    end
     vim.api.nvim_echo(chunks, true, {})
   end
   require("inkmath.render.cache").stats(function(st)

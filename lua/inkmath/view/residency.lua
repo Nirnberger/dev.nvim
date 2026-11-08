@@ -36,7 +36,11 @@ function M.trim(buf)
           break
         end
       end
-      if keep then n = n + 1 else placer.clear(buf, id) end
+      if keep then
+        n = n + 1
+      else
+        placer.clear(buf, id)
+      end
     end
     return n
   end
