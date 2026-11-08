@@ -123,4 +123,32 @@ T["sixel paint without .six and without magick is empty"] = function()
   eq(out, {})
 end
 
+T["WezTerm and Konsole are kitty in overlay mode"] = function()
+  for _, env in ipairs({ { TERM_PROGRAM = "WezTerm" }, { KONSOLE_VERSION = "230800" } }) do
+    local b = backend.detect(env)
+    eq(b.name, "kitty")
+    eq(b.mode, "overlay")
+  end
+end
+
+T["term.backend kitty forces placeholder mode on WezTerm"] = function()
+  config.setup({ term = { backend = "kitty" } })
+  eq(backend.detect({ TERM_PROGRAM = "WezTerm" }).mode, "placeholder")
+end
+
+T["kitty overlay places a transmitted image without moving the cursor"] = function()
+  local b = backend.detect({ TERM_PROGRAM = "WezTerm" })
+  eq(
+    b.paint({ path = "/x.png", cols = 3, rows = 2, id = 9 }, 4, 5),
+    { "\0277\27[4;5H\27_Ga=p,i=9,c=3,r=2,C=1,q=2\27\\\0278" }
+  )
+  eq(b.delete(9), "\27_Ga=d,d=i,i=9,q=2\27\\")
+end
+
+T["overlay transmit has no virtual placement"] = function()
+  local kitty = require("inkmath.term.kitty")
+  eq(kitty.transmit_seq(7, "/tmp/a.png", 3, 1, true, false)[1]:find("U=1", 1, true), nil)
+  eq(kitty.transmit_seq(7, "/tmp/a.png", 3, 1, true, false)[1]:find("a=t,", 1, true) ~= nil, true)
+end
+
 return T

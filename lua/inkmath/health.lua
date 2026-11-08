@@ -138,20 +138,19 @@ function M.check()
   local tmux = require("inkmath.term.tmux")
   local backend, why = require("inkmath.term.backend").detect()
   if backend then
-    h.ok("terminal supports kitty graphics")
+    if backend.mode == "placeholder" then
+      h.ok("terminal supports kitty graphics")
+    else
+      h.ok(
+        ("terminal graphics: %s without Unicode placeholders, overlay mode (images can flicker, floats may cover them)"):format(
+          backend.name
+        )
+      )
+    end
   elseif why == "disabled by term.backend" then
     h.error("terminal graphics disabled by term.backend = 'none'")
   else
-    -- WezTerm and Konsole draw kitty graphics but not Unicode placeholders (the
-    -- protocol inkmath uses), so they are not supported either
-    local partial = vim.env.TERM_PROGRAM == "WezTerm" and "WezTerm"
-      or (vim.env.KONSOLE_VERSION or "") ~= "" and "Konsole"
-      or nil
-    if partial then
-      h.error(partial .. " has kitty graphics but no Unicode placeholders, which inkmath needs (use Ghostty or kitty)")
-    else
-      h.error("terminal does not support kitty graphics (use Ghostty or kitty)")
-    end
+    h.error("terminal has no supported graphics protocol (kitty/Ghostty, WezTerm, Konsole, iTerm2, Sixel terminals)")
   end
   if vim.o.termguicolors then
     h.ok("'termguicolors' is on")

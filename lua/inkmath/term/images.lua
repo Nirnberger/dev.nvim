@@ -95,7 +95,8 @@ end
 
 ---@param keep integer|nil previous LRU stamp to preserve (retransmit)
 local function transmit(id, img, keep)
-  local seqs = kitty.transmit_seq(id, img.path, img.cols, img.rows, kitty.is_local())
+  local seqs =
+    kitty.transmit_seq(id, img.path, img.cols, img.rows, kitty.is_local(), backend.current().mode ~= "overlay")
   if #seqs == 0 then
     -- nothing sent (remote: unreadable or empty PNG): keep the id accounted for as the
     -- oldest resident, so eviction frees it (it never leaks from the range) but not

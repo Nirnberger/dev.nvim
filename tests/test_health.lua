@@ -239,23 +239,22 @@ I["rmd auto-attaches"] = function()
 end
 I["quarto and rmd in the default filetypes"] = function() eq(c.get().filetypes, { "tex", "markdown", "quarto", "rmd" }) end
 
--- WezTerm answers the kitty graphics query but has no Unicode placeholders: the
--- health error says so instead of "does not support kitty graphics"
-T["health names WezTerm's missing Unicode placeholders"] = function()
+-- WezTerm draws kitty graphics without Unicode placeholders: overlay mode, not an error
+T["health reports WezTerm as kitty overlay mode"] = function()
   local kitty = require("inkmath.term.kitty")
-  local errors = {}
-  local saved_sup, saved_tp, saved_err = kitty.supported, vim.env.TERM_PROGRAM, vim.health.error
+  local oks, errors = {}, {}
+  local saved_sup, saved_tp, saved_ok, saved_err =
+    kitty.supported, vim.env.TERM_PROGRAM, vim.health.ok, vim.health.error
   kitty.supported = function() return false end
   vim.env.TERM_PROGRAM = "WezTerm"
+  vim.health.ok = function(msg) oks[#oks + 1] = msg end
   vim.health.error = function(msg) errors[#errors + 1] = msg end
   local ok, err = pcall(health.check)
-  kitty.supported, vim.env.TERM_PROGRAM, vim.health.error = saved_sup, saved_tp, saved_err
+  kitty.supported, vim.env.TERM_PROGRAM, vim.health.ok, vim.health.error = saved_sup, saved_tp, saved_ok, saved_err
   assert(ok, err)
-  local hit = vim.tbl_filter(
-    function(m) return m:find("WezTerm has kitty graphics but no Unicode placeholders", 1, true) end,
-    errors
-  )
+  local hit = vim.tbl_filter(function(m) return m:find("without Unicode placeholders, overlay mode", 1, true) end, oks)
   eq(#hit, 1)
+  eq(#vim.tbl_filter(function(m) return m:find("graphics", 1, true) end, errors), 0)
 end
 
 T["health says graphics are disabled by term.backend = none"] = function()

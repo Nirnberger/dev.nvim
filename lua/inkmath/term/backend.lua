@@ -20,11 +20,12 @@ local function registry()
   return {
     kitty = require("inkmath.term.kitty"),
     iterm2 = require("inkmath.term.backends.iterm2"),
+    kitty_overlay = require("inkmath.term.backends.kitty_overlay"),
     sixel = require("inkmath.term.backends.sixel"),
   }
 end
 
-local AUTO_ORDER = { "kitty", "iterm2", "sixel" }
+local AUTO_ORDER = { "kitty", "kitty_overlay", "iterm2", "sixel" }
 
 ---@param env? table environment to inspect (default: vim.env)
 ---@return inkmath.Backend|nil backend

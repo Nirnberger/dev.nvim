@@ -27,10 +27,14 @@ function M.is_local() return (vim.env.SSH_CONNECTION or "") == "" end
 ---@param cols integer
 ---@param rows integer
 ---@param is_local boolean
+---@param placeholder? boolean default true: transmit + virtual placement for Unicode placeholders (`a=T,U=1`); false: transmit only (`a=t`, overlay mode)
 ---@return string[]
-function M.transmit_seq(id, path, cols, rows, is_local)
+function M.transmit_seq(id, path, cols, rows, is_local, placeholder)
   local dims = string.format("i=%d,c=%d,r=%d", id, cols, rows)
-  if is_local then return { ESC .. "_Ga=T,U=1,f=100,t=f,q=2," .. dims .. ";" .. vim.base64.encode(path) .. ST } end
+  local act = placeholder == false and "a=t" or "a=T,U=1"
+  if is_local then
+    return { ESC .. "_G" .. act .. ",f=100,t=f,q=2," .. dims .. ";" .. vim.base64.encode(path) .. ST }
+  end
   local f = io.open(path, "rb")
   if not f then return {} end
   local bytes = f:read("*a")
@@ -43,7 +47,7 @@ function M.transmit_seq(id, path, cols, rows, is_local)
     local data = b64:sub((i - 1) * CHUNK + 1, i * CHUNK)
     local more = i < n and 1 or 0
     if i == 1 then
-      seqs[i] = ESC .. "_Ga=T,U=1,f=100,t=d,q=2," .. dims .. ",m=" .. more .. ";" .. data .. ST
+      seqs[i] = ESC .. "_G" .. act .. ",f=100,t=d,q=2," .. dims .. ",m=" .. more .. ";" .. data .. ST
     else
       seqs[i] = ESC .. "_Gm=" .. more .. ";" .. data .. ST
     end
