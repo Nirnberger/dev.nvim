@@ -57,4 +57,48 @@ T["registered ctx kind gives macros"] = function()
   vim.api.nvim_buf_delete(b, { force = true })
 end
 
+-- The detector from README.md / doc/inkmath.txt ("Custom detectors"), verbatim.
+local EXAMPLE = [==[
+-- lua/rst_math.lua
+local M = {}
+
+function M.detect(buf, srow, erow)
+  local nodes = {}
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  for row, line in ipairs(lines) do
+    local init = 1
+    while true do
+      local s, e, src = line:find(":math:`([^`]+)`", init)
+      if not s then break end
+      nodes[#nodes + 1] = {
+        id = require("inkmath.detect").node_id("inline", nil, src),
+        kind = "inline",
+        src = src,
+        range = { srow = row - 1, scol = s - 1, erow = row - 1, ecol = e },
+      }
+      init = e + 1
+    end
+  end
+  return nodes, false -- nodes, has_error
+end
+
+return M
+]==]
+
+T["documented custom detector"] = function()
+  package.loaded.rst_math = assert(load(EXAMPLE, "=rst_math"))()
+  local api = require("inkmath")
+  api.register_filetype("rst", { lang = "rst", detector = "rst_math" })
+  local b = h.buf({ "Euler: :math:`e^{i\\pi}+1=0` and :math:`x^2`.", "none here" }, "rst")
+  local nodes, info = detect.detect(b)
+  eq(#nodes, 2)
+  eq(nodes[1].src, "e^{i\\pi}+1=0")
+  eq(nodes[1].kind, "inline")
+  eq(info.has_error, false)
+  eq(vim.api.nvim_buf_get_text(b, 0, nodes[2].range.scol, 0, nodes[2].range.ecol, {})[1], ":math:`x^2`")
+  eq(#detect.detect(b, 1, 1), 0) -- row filter applied by detect.detect
+  vim.api.nvim_buf_delete(b, { force = true })
+  package.loaded.rst_math = nil
+end
+
 return T
