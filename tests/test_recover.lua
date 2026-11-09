@@ -136,9 +136,27 @@ T["open_at: only the cursor's paragraph, with row offset"] = function()
   eq(recover.open_at(lines, 10, 14, 13), nil)
   eq(recover.open_at(lines, 10, 11, 0), nil) -- blank line
 end
-T["open_at: runs to the paragraph end"] = function()
-  local n = recover.open_at({ "Text $x +", "y", "", "z" }, 0, 0, 9)
-  eq({ n.src, n.range }, { "x +\ny", { srow = 0, scol = 5, erow = 1, ecol = 1 } })
+T["open_at: the body ends at the cursor"] = function()
+  -- the paragraph runs on into \end{document} / \item: those are not part of the formula
+  local n = recover.open_at({ "\\begin{document}", "Some text $x^2", "\\end{document}" }, 0, 1, 14)
+  eq({ n.src, n.range }, { "x^2", { srow = 1, scol = 10, erow = 1, ecol = 14 } })
+  n = recover.open_at({ "\\item Some text $x^2", "\\item next", "\\end{itemize}" }, 0, 0, 20)
+  eq(n.src, "x^2")
+  n = recover.open_at({ "Some $x^2 and the rest." }, 0, 0, 9)
+  eq({ n.src, n.range }, { "x^2", { srow = 0, scol = 5, erow = 0, ecol = 9 } })
+end
+T["open_at: cursor on a later row of the paragraph"] = function()
+  local n = recover.open_at({ "Text $x +", "y + z more", "", "w" }, 0, 1, 5)
+  eq({ n.src, n.range }, { "x +\ny + z", { srow = 0, scol = 5, erow = 1, ecol = 5 } })
+end
+T["open_at: empty body (cursor on or right after the opener) is nil"] = function()
+  eq(recover.open_at({ "Some text $" }, 0, 0, 11), nil)
+  eq(recover.open_at({ "Some text $x" }, 0, 0, 10), nil) -- on the opener
+  eq(recover.open_at({ "a \\(x" }, 0, 0, 3), nil) -- inside the opener
+end
+T["open_at: typing a $$ closer keeps the display formula"] = function()
+  local n = recover.open_at({ "a $$x^2$" }, 0, 0, 8)
+  eq({ n.kind, n.src, n.range }, { "display", "x^2", { srow = 0, scol = 2, erow = 0, ecol = 8 } })
 end
 T["open_at: nothing open before the cursor"] = function()
   eq(recover.open_at({ "$a$ b" }, 0, 0, 5), nil)

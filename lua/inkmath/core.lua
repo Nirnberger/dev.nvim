@@ -539,7 +539,7 @@ function on_cursor(buf)
         end
       end
       -- a formula whose closer is not typed yet breaks the tree and stays source for
-      -- refresh; the preview still shows it (opener before the cursor to paragraph end)
+      -- refresh; the preview still shows it (from its opener to the cursor)
       if not hit and info.tree_error then hit = detect.open_at(buf, row, col) end
       if hit then
         local ctx = M.ctx(buf)

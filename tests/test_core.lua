@@ -996,10 +996,13 @@ T["cases"]["preview shows a formula whose closer is not typed yet"] = function()
   mathjax.start = function() return true end
   local got = {}
   cursor.preview = function(_, _, node) got[#got + 1] = node.src end
+  -- text after the cursor: normal mode (the test's real mode) clamps the cursor to the last char
   for _, case in ipairs({
-    { { "Some text $x^2" }, { 1, 14 } },
-    { { "Some text \\(x^2" }, { 1, 15 } },
-    { { "Intro $a$ text.", "", "Some text $x^2", "", "Later $b$ more." }, { 3, 14 } },
+    { { "Some text $x^2 more" }, { 1, 14 } },
+    { { "Some text \\(x^2 more" }, { 1, 15 } },
+    { { "Intro $a$ text.", "", "Some text $x^2 more", "", "Later $b$ more." }, { 3, 14 } },
+    { { "\\documentclass{article}", "\\begin{document}", "Some text $x^2 more", "\\end{document}" }, { 3, 14 } },
+    { { "\\begin{itemize}", "\\item Some $x^2 and more", "\\item next", "\\end{itemize}" }, { 2, 15 } },
   }) do
     local buf = setup_buf(case[1], "tex")
     core.attach(buf, { sync = true })

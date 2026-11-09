@@ -37,9 +37,15 @@ line scanner recovers the formulas, paragraph by paragraph.
   formula being typed must still preview. When the tree has errors and no detected node
   contains the cursor, `core.lua` asks `detect.open_at(buf, row, col)` (latex.lua ->
   pure `recover.open_at(lines, first_row, row, col)`): the last unpaired `$`, `$$`, `\(` or `\[`
-  at/before the cursor in the cursor's paragraph, as a node from the opener to the paragraph end
-  (`$`/`\(` inline, `$$`/`\[` display; nil for an empty body or inside a comment/verbatim). Used
-  only by the preview, never by refresh. An open `\begin` gets no preview (as before).
+  at/before the cursor in the cursor's paragraph, as a node from the opener to the cursor: the
+  body is what has been typed so far (across rows if the cursor is on a later row of the
+  paragraph), so a paragraph running on into `\item`/`\end{...}` or the rest of the sentence is
+  not part of it, and the range (and the float) ends at the cursor row. `$`/`\(` inline,
+  `$$`/`\[` display; nil for an empty body (cursor on, inside or right after the opener) or
+  inside a comment/verbatim. A `$` right before the cursor that follows an unpaired `$$` is the
+  `$$` closer being typed: the `$$` formula is shown up to that `$`. Each cursor move asks
+  again, so the preview follows the typing. Used only by the preview, never by refresh. An open
+  `\begin` gets no preview (as before).
 
 ### Scanner rules
 - Boundaries: `$`, `\(`, `\[` end at the paragraph (blank line) at the latest; `\begin{x}` ends at

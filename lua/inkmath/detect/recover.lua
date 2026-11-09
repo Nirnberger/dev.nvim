@@ -236,7 +236,9 @@ function M.scan(lines, first_row) return run(lines, first_row) end
 
 --- The formula being typed at the cursor, for the live preview only (refresh never renders
 --- it): the last unpaired `$`, `$$`, `\(` or `\[` at/before (row, col) in the cursor's
---- paragraph, up to the paragraph end. nil when there is none or its body is empty.
+--- paragraph, its body the text from the opener up to the cursor (the range ends at the
+--- cursor). nil when there is none or the body is empty (cursor on/right after the opener).
+--- A `$` right before the cursor after an unpaired `$$` is taken as the `$$` closer being typed.
 --- @param lines string[] lines[1] is buffer row `first_row`; must hold the whole paragraph
 --- @param first_row integer
 --- @param row integer cursor row (0-based, buffer)
@@ -256,19 +258,29 @@ function M.open_at(lines, first_row, row, col)
   local para = vim.list_slice(lines, lo, hi)
   local unpaired = {}
   run(para, first_row + lo - 1, unpaired)
-  local kr, best = k - lo + 1, nil
+  local kr, best, prev = k - lo + 1, nil, nil
   for _, u in ipairs(unpaired) do
-    if u[1] < kr or (u[1] == kr and u[2] - 1 <= col) then best = u end
+    if u[1] < kr or (u[1] == kr and u[2] - 1 <= col) then
+      best, prev = u, best
+    end
   end
   if not best then return nil end
+  -- the body is what has been typed so far: opener to cursor (bytes before `col`)
+  local stop_r, stop_c = kr, col
+  -- typing a `$$` closer: its first `$` is unpaired with an empty body; keep the display
+  -- formula up to that `$` instead of closing the preview
+  if best[3] == "$" and prev and prev[3] == "$$" and best[1] == kr and best[2] == col then
+    best, stop_r, stop_c = prev, best[1], best[2] - 1
+  end
   local r, c, open = best[1], best[2], best[3]
-  local last = #para
-  local src = trim(slice(para, r, c + #open, last, #para[last]))
+  local body_c = c + #open
+  if stop_r == r and stop_c < body_c then return nil end -- cursor on/inside the opener
+  local src = trim(slice(para, r, body_c, stop_r, stop_c))
   if src == "" then return nil end
   return {
     kind = (open == "$" or open == "\\(") and "inline" or "display",
     src = src,
-    range = { srow = first_row + lo - 1 + r - 1, scol = c - 1, erow = first_row + hi - 1, ecol = #para[last] },
+    range = { srow = first_row + lo - 1 + r - 1, scol = c - 1, erow = first_row + lo - 1 + kr - 1, ecol = col },
   }
 end
 
