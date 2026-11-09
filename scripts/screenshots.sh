@@ -283,7 +283,11 @@ for f in $samples; do
       case " $overlay_samples " in *" $f "*) ;; *) continue ;; esac
       shoot_overlay "$f" "$v" || {
         echo "${GITHUB_ACTIONS:+::warning::}screenshots: $f ($v) failed, retrying once" >&2
-        shoot_overlay "$f" "$v" || die "$f ($v) failed twice"
+        shoot_overlay "$f" "$v" || {
+          # konsole: known failure (window chrome, see KNOWN in tests/test_terminals_real.lua): no shot, no failure
+          [ "$v" = konsole-overlay ] && { echo "${GITHUB_ACTIONS:+::warning::}screenshots: $f ($v) skipped (known failure)" >&2; continue; }
+          die "$f ($v) failed twice"
+        }
       }
       continue
     fi
