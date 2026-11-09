@@ -116,7 +116,11 @@ function M._watch_late()
       local seq = (type(ev.data) == "table" and ev.data.sequence) or vim.v.termresponse or ""
       if not seq:match("\27%[%?[%d;]+c") then return end
       watching = false
-      if M.da1_has_sixel(seq) then vim.schedule(M._late_reply) else da1 = false end
+      if M.da1_has_sixel(seq) then
+        vim.schedule(M._late_reply)
+      else
+        da1 = false
+      end
       return true
     end,
   })
