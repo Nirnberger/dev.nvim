@@ -133,11 +133,55 @@ local function ensure_buf(p)
   return p.fbuf
 end
 
+--- Blank rows (only whitespace) directly above srow and below erow, counted within the
+--- visible rows lo..hi (0-based, inclusive).
+---@return integer above, integer below
+function M._blank_rows(lines, first, srow, erow, lo, hi)
+  local function blank(r)
+    local l = lines[r - first + 1]
+    return l ~= nil and l:match("^%s*$") ~= nil
+  end
+  local above, below = 0, 0
+  local r = srow - 1
+  while r >= math.max(lo, first) and blank(r) do
+    above, r = above + 1, r - 1
+  end
+  r = erow + 1
+  while r <= math.min(hi, first + #lines - 1) and blank(r) do
+    below, r = below + 1, r + 1
+  end
+  return above, below
+end
+
+--- True: put the float above the node. The configured side wins when the float (height
+--- plus its border rows) fits into the blank rows there, else the other side if it fits,
+--- else the configured side (preview.avoid_text keeps text uncovered).
+local function pick_above(buf, win, node, height, border, opts)
+  local want_above = opts.position == "above"
+  if not opts.avoid_text then return want_above end
+  local ok, a, b = pcall(function()
+    local vis = vim.api.nvim_win_call(win, function() return { vim.fn.line("w0") - 1, vim.fn.line("w$") - 1 } end)
+    local lo, hi = vis[1], vis[2]
+    local first = math.max(lo, node.range.srow - height - 3)
+    local last = math.min(hi, node.range.erow + height + 3)
+    local lines = vim.api.nvim_buf_get_lines(buf, first, last + 1, false)
+    return M._blank_rows(lines, first, node.range.srow, node.range.erow, lo, hi)
+  end)
+  if not ok then return want_above end
+  local need = height + ((border == "none") and 0 or 2)
+  local fits = { above = a >= need, below = b >= need }
+  local pref, other = want_above and "above" or "below", want_above and "below" or "above"
+  if fits[pref] then return want_above end
+  if fits[other] then return not want_above end
+  return want_above
+end
+
 --- Open or move the preview float: width x height cells next to the node, with the
 --- configured border/position; title only for the error view.
 local function show_float(p, buf, win, node, width, height, title)
   local opts = config.get(buf).preview
-  local above = opts.position == "above"
+  local border = opts.border or (vim.o.winborder == "" and "rounded" or nil)
+  local above = pick_above(buf, win, node, height, border or vim.o.winborder, opts)
   local cfg = {
     relative = "win",
     win = win,
@@ -150,7 +194,6 @@ local function show_float(p, buf, win, node, width, height, title)
     height = math.max(1, height),
   }
   local open = p.win and vim.api.nvim_win_is_valid(p.win)
-  local border = opts.border or (vim.o.winborder == "" and "rounded" or nil)
   -- a title needs a border; "" removes the error title again
   if border ~= "none" and (title or (open and p.titled)) then cfg.title = title or "" end
   p.titled = title ~= nil
