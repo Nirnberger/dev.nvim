@@ -21,7 +21,10 @@ local script = root .. "/scripts/realterm.sh"
 
 -- known failures: terminal name -> reason. The test still runs; a failure is reported as a
 -- skip with this reason, a pass is an error (remove the entry).
-local KNOWN = {}
+local KNOWN = {
+  konsole = "the window keeps its light toolbar rows and ignores the inkmath colorscheme under Xvfb (bg 241,242,243), "
+    .. "so the pixel rows do not line up with the cells; the image itself is drawn. Not debuggable without Konsole locally",
+}
 
 local CASES = {
   { name = "xterm", term = "xterm", backend = "sixel" },
