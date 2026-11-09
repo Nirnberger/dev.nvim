@@ -122,7 +122,7 @@ local function run(lines, ft, snips, seed, steps, hl)
     local full, info = detect.detect(buf)
     local want = norm(full)
     -- a broken tree makes every detection full: start over now and then
-    if info.has_error and math.random(1, 2) == 1 then vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines) end
+    if info.tree_error and math.random(1, 2) == 1 then vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines) end
     if not vim.deep_equal(got, want) then
       error(
         ("seed %d step %d: incremental != full\nbefore the edits:\n%s\nbuffer:\n%s\nonly in incremental:\n%s\nonly in full:\n%s"):format(
@@ -427,7 +427,7 @@ local function run_want(lines, ft, snips, seed, steps)
     local got = norm(in_rows(incr.detect(buf, want), want))
     local full, info = detect.detect(buf)
     local exp = norm(in_rows(full, want))
-    if info.has_error and math.random(1, 2) == 1 then vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines) end
+    if info.tree_error and math.random(1, 2) == 1 then vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines) end
     if not vim.deep_equal(got, exp) then
       error(
         ("seed %d step %d want %s: bounded != full\n%s\nvs\n%s"):format(

@@ -42,7 +42,8 @@ local FALLBACK_MS = 200 -- pending on the highlighter: parse ourselves after thi
 ---@class inkmath.IncrState
 ---@field nodes inkmath.MathNode[]|nil pristine nodes of the last detection
 ---@field pairs integer[][] markdown: `$$` block row pairs (markdown.block_pairs), shifted
----@field has_error boolean
+---@field has_error boolean the parse tree was broken at the last detection (tree_error): no incremental work
+---@field freeze boolean the last detection could not recover (info.has_error)
 ---@field tick integer
 ---@field edits table[]
 ---@field dirty {[1]: integer, [2]: integer}|nil row range, current coordinates
@@ -268,7 +269,9 @@ end
 local function result(st, has_error, extra)
   local stale = st.stale
   if extra then stale = rows.add(vim.deepcopy(stale), extra[1], extra[2]) end
-  return copy(st.nodes, stale), { has_error = has_error == true }, vim.deepcopy(stale)
+  return copy(st.nodes, stale),
+    { has_error = has_error == true, tree_error = st.has_error == true },
+    vim.deepcopy(stale)
 end
 
 local function has_dollar(buf, lo, hi)
@@ -307,7 +310,7 @@ local function full(buf, st, lang, why)
   M.stats[why or "?"] = (M.stats[why or "?"] or 0) + 1
   local nodes, info = detect.detect(buf)
   st.nodes = copy(nodes)
-  st.has_error = info.has_error
+  st.has_error, st.freeze = info.tree_error == true, info.has_error == true
   st.pairs = lang == "markdown" and require("inkmath.detect.markdown").block_pairs(buf) or {}
   st.edits, st.dirty, st.full, st.stale = {}, nil, false, {}
   reset_marks(st)
@@ -455,11 +458,11 @@ local function redetect(buf, st, md, lo, hi, want)
     if md and not has_dollar(buf, wlo, whi) then
       -- no `$` in these rows (and no old node overlaps them, or wlo..whi would hold
       -- its `$`): nothing to find
-      fresh, info = {}, { has_error = false }
+      fresh, info = {}, { has_error = false, tree_error = false }
     else
       fresh, info = detect.detect(buf, wlo, whi)
     end
-    if info.has_error then return false end
+    if info.tree_error then return false end
     for _, n in ipairs(fresh) do
       wlo, whi = math.min(wlo, n.range.srow), math.max(whi, n.range.erow)
     end
@@ -518,6 +521,7 @@ function M.detect(buf, want)
       edits = {},
       full = true,
       has_error = false,
+      freeze = false,
       tick = -1,
       lang = lang,
       stale = {},
@@ -549,9 +553,9 @@ function M.detect(buf, want)
       M.stats.pending = M.stats.pending + 1
       local n, info, stale
       if st.nodes then
-        n, info, stale = result(st, st.has_error, st.dirty)
+        n, info, stale = result(st, st.freeze, st.dirty)
       else -- first detection: nothing known yet
-        n, info, stale = {}, { has_error = false }, { { 0, vim.api.nvim_buf_line_count(buf) - 1 } }
+        n, info, stale = {}, { has_error = false, tree_error = false }, { { 0, vim.api.nvim_buf_line_count(buf) - 1 } }
       end
       info.pending = true
       return n, info, stale
@@ -562,7 +566,7 @@ function M.detect(buf, want)
       local tree = parser:trees()[1]
       if not st.attached or not tree or tree:root():has_error() then return full(buf, st, lang, "first") end
       M.stats.first_bounded = (M.stats.first_bounded or 0) + 1
-      st.nodes, st.stale, st.has_error = {}, { { 0, vim.api.nvim_buf_line_count(buf) - 1 } }, false
+      st.nodes, st.stale, st.has_error, st.freeze = {}, { { 0, vim.api.nvim_buf_line_count(buf) - 1 } }, false, false
       st.pairs = md and require("inkmath.detect.markdown").block_pairs(buf) or {}
       st.edits, st.dirty, st.full = {}, nil, false
       reset_marks(st)

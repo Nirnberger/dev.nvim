@@ -105,4 +105,46 @@ T["row-bounded detect matches the full result"] = function()
   eq(n[1].src, "c")
 end
 
+local function srcs(n)
+  return vim.tbl_map(function(x) return x.src end, n)
+end
+
+T["recovers formulas around an unclosed dollar"] = function()
+  local n, info = detect.detect(h.buf({ "$a$ $b$ $c", "", "$y$", "", "\\[z\\]" }, "tex"))
+  eq(srcs(n), { "a", "b", "y", "z" })
+  eq(info.has_error, false)
+  eq(info.tree_error, true)
+end
+
+T["recovery keeps later paragraphs after a broken command"] = function()
+  local n = d({ "$\\frac{$ a", "", "$y$" })
+  assert(vim.tbl_contains(srcs(n), "y"))
+end
+
+T["error-free text has no tree_error"] = function()
+  local n, info = detect.detect(h.buf({ "$a$ and $b$" }, "tex"))
+  eq(#n, 2)
+  eq(info.tree_error, false)
+  eq(info.has_error, false)
+end
+
+T["recovered nodes have the same ids as in clean text"] = function()
+  local clean = d({ "$y$", "", "\\begin{align}", "a&=b", "\\end{align}" })
+  local broken = d({ "$x", "", "$y$", "", "\\begin{align}", "a&=b", "\\end{align}" })
+  local ids = {}
+  for _, x in ipairs(broken) do
+    ids[x.src] = x.id
+  end
+  for _, x in ipairs(clean) do
+    eq(ids[x.src], x.id)
+  end
+end
+
+T["row-bounded detect still works on a broken tree"] = function()
+  local b = h.buf({ "$a$ $b$ $c", "", "$y$", "", "$z$" }, "tex")
+  local n, info = detect.detect(b, 4, 4)
+  eq(srcs(n), { "z" })
+  eq(info.tree_error, true)
+end
+
 return T
