@@ -221,7 +221,7 @@ shoot_overlay() { # <sample file> <variant>: the variant's terminal via scripts/
   (cd "$root" && exec env NVIM_APPNAME=inkmath-dev XDG_CACHE_HOME="$d/cache" INKMATH_ROOT="$root" \
     INKMATH_SHOT_READY="$ready" INKMATH_SHOT_BACKEND="$force" \
     setsid bash "$root/scripts/realterm.sh" run "$t" "$d" "$cols" "$rows" \
-    nvim --noplugin -u "$root/scripts/screenshots-init.lua" "dev/samples/$file") >"$d/term.log" 2>&1 &
+    "$(command -v nvim)" --noplugin -u "$root/scripts/screenshots-init.lua" "dev/samples/$file") >"$d/term.log" 2>&1 &
   pid=$!
 
   shot() { bash "$root/scripts/realterm.sh" shot "$t" "$d" "$1" 2>/dev/null; }

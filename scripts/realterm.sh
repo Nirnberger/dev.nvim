@@ -66,7 +66,9 @@ run() {
     if [ -n "${!v+x}" ]; then keep+=("$v=${!v}"); else keep+=(-u "$v"); fi
   done
   # the inner command's exit status lands in <dir>/inner.log (diagnostics: a terminal that ends at once)
-  set -- sh -c '"$@"; echo "inner command exited with $?" >>"$0"' "$d/inner.log" "${keep[@]}" "$@"
+  # (127: not found, then also the PATH it saw)
+  set -- sh -c '"$@"; rc=$?; echo "inner command exited with $rc" >>"$0"
+    [ "$rc" != 127 ] || echo "PATH inside the terminal: $PATH" >>"$0"' "$d/inner.log" "${keep[@]}" "$@"
   # the terminal gets nothing from the outer session: no user config, no inherited terminal identity
   export XDG_CONFIG_HOME="$d/home/.config" XDG_DATA_HOME="$d/home/.local/share" XDG_RUNTIME_DIR="$d/run"
   unset TERM_PROGRAM TERM_PROGRAM_VERSION LC_TERMINAL KONSOLE_VERSION WEZTERM_PANE WEZTERM_UNIX_SOCKET \

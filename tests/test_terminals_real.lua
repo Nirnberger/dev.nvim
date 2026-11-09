@@ -57,7 +57,7 @@ local function launch(t, dir, doc, broken)
     dir,
     "80",
     "24",
-    "nvim",
+    vim.v.progpath, -- absolute: the terminal's PATH may not have it (CI: ~/nvim/bin via GITHUB_PATH)
     "--noplugin",
     "-u",
     root .. "/scripts/screenshots-init.lua",
