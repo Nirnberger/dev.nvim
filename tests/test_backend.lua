@@ -103,6 +103,21 @@ T["DA1 reply with attribute 4 means sixel"] = function()
   eq(sixel.da1_has_sixel("junk"), false)
 end
 
+T["a DA1 reply after the probe gave up detects sixel and attaches again"] = function()
+  local sixel = require("inkmath.term.backends.sixel")
+  local env_mod, api = require("inkmath.env"), require("inkmath.api")
+  local rearmed, reapplied = 0, 0
+  local o1, o2 = env_mod.rearm, api._reapply
+  env_mod.rearm = function() rearmed = rearmed + 1 end
+  api._reapply = function() reapplied = reapplied + 1 end
+  sixel._watch_late()
+  vim.api.nvim_exec_autocmds("TermResponse", { data = { sequence = "\27[?62;4;c" } })
+  vim.wait(200, function() return reapplied > 0 end, 10)
+  env_mod.rearm, api._reapply = o1, o2
+  sixel._forget()
+  eq({ rearmed, reapplied }, { 1, 1 })
+end
+
 T["sixel paint sends the .six file at the cell"] = function()
   local b = backend.detect({ TERM = "foot" })
   local base = vim.fn.tempname()
