@@ -252,6 +252,60 @@ T["cases"]["preview position above"] = function()
   eq(cfg.bufpos, { 1, 2 })
 end
 
+-- preview.avoid_text: the float goes where blank lines hold it
+T["blank_rows"] = function()
+  local lines = { "x", "", "  ", "a $y$", "", "b" }
+  eq({ cursor._blank_rows(lines, 0, 3, 3, 0, 5) }, { 2, 1 })
+  eq({ cursor._blank_rows(lines, 0, 3, 3, 2, 4) }, { 1, 1 }) -- only visible rows count
+  eq({ cursor._blank_rows(lines, 0, 0, 0, 0, 5) }, { 0, 2 }) -- first/last row of the buffer
+  eq({ cursor._blank_rows({ "a $y$" }, 0, 0, 0, 0, 0) }, { 0, 0 })
+end
+
+local function avoid_cfg(preview, lines, row)
+  local config = require("inkmath.config")
+  config.setup({ preview = preview })
+  local buf = setup_buf(lines)
+  cursor.preview(buf, 0, node("n1", { row, 2, row, 5 }), {})
+  local cfg = vim.api.nvim_win_get_config(float_wins()[1])
+  cursor.close_preview(buf)
+  config.setup({})
+  return cfg
+end
+
+T["cases"]["avoid_text: blank lines above take the float despite position below"] = function()
+  local cfg = avoid_cfg({}, { "t", "", "", "", "a $x$ b", "text" }, 4)
+  eq(cfg.anchor, "SW")
+  eq(cfg.bufpos, { 4, 2 })
+end
+
+T["cases"]["avoid_text: blank lines below take the float despite position above"] = function()
+  local cfg = avoid_cfg({ position = "above" }, { "text", "a $x$ b", "", "  ", "", "t" }, 1)
+  eq(cfg.anchor, "NW")
+  eq(cfg.bufpos, { 1, 2 })
+end
+
+T["cases"]["avoid_text: configured side first when both fit"] = function()
+  local lines = { "t", "", "", "", "a $x$ b", "", "", "", "t" }
+  eq(avoid_cfg({}, lines, 4).anchor, "NW")
+  eq(avoid_cfg({ position = "above" }, lines, 4).anchor, "SW")
+end
+
+T["cases"]["avoid_text: too few blank lines fall back to position"] = function()
+  local lines = { "t", "", "a $x$ b", "", "t" } -- image 1 row + border 2 needs 3
+  eq(avoid_cfg({}, lines, 2).anchor, "NW")
+  eq(avoid_cfg({ position = "above" }, lines, 2).anchor, "SW")
+end
+
+T["cases"]["avoid_text: without a border one blank line is enough"] = function()
+  local cfg = avoid_cfg({ border = "none" }, { "t", "", "a $x$ b", "text" }, 2)
+  eq(cfg.anchor, "SW")
+end
+
+T["cases"]["avoid_text = false keeps position"] = function()
+  local cfg = avoid_cfg({ avoid_text = false }, { "t", "", "", "", "a $x$ b", "text" }, 4)
+  eq(cfg.anchor, "NW")
+end
+
 -- Task 13: the preview float shows the TeX error
 local function err_render()
   render.render = function(n, _, cb)

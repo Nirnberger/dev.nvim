@@ -170,6 +170,13 @@ M.options = {
     doc = "Preview float below the formula or above it.",
   },
   {
+    path = "preview.avoid_text",
+    default = true,
+    check = "boolean",
+    scope = "buffer",
+    doc = "Put the preview float where blank lines hold it: on the side of the formula with enough blank lines (the 'preview.position' side first), so it covers no text; with none, 'preview.position' decides.",
+  },
+  {
     path = "preview.error_lines",
     default = 3,
     check = int_ge(0),

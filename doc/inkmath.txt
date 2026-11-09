@@ -212,6 +212,13 @@ preview.position ~
     Default: `"below"`  (also in |inkmath-overrides|)
     Preview float below the formula or above it.
 
+                                                  *inkmath.preview.avoid_text*
+preview.avoid_text ~
+    Default: `true`  (also in |inkmath-overrides|)
+    Put the preview float where blank lines hold it: on the side of the
+    formula with enough blank lines (the 'preview.position' side first), so it
+    covers no text; with none, 'preview.position' decides.
+
                                                  *inkmath.preview.error_lines*
 preview.error_lines ~
     Default: `3`  (also in |inkmath-overrides|)

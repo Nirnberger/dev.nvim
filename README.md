@@ -4,7 +4,9 @@ Renders LaTeX math in `tex`, `markdown`, `quarto` and `rmd` buffers as real imag
 Works in Ghostty and kitty (best), plus iTerm2, WezTerm, Konsole and Sixel terminals
 (see [Supported terminals](#supported-terminals)), including through tmux. Inline math sits on the text
 baseline, display math is centered, and the formula under the cursor shows its
-source with a live preview float while you type.
+source with a live preview float while you type. The float goes where blank lines hold it
+(above or below the formula, `preview.position` first), so it covers no text; with too few
+blank lines `preview.position` decides (`preview.avoid_text = false` always uses it).
 
 ## Requirements
 
