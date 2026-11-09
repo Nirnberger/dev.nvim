@@ -103,8 +103,7 @@ local function paragraph_regions(lines, rows)
   return merged
 end
 
---- Replace treesitter nodes in the error regions by the tolerant scanner's. Returns the new
---- list, or nil on failure (the caller keeps the old behaviour).
+--- The range starts inside a comment or verbatim node of the tree.
 local function in_skip(tree, rg)
   local node = tree:root():descendant_for_range(rg.srow, rg.scol, rg.srow, rg.scol)
   while node do
@@ -115,6 +114,9 @@ local function in_skip(tree, rg)
   return false
 end
 
+--- Replace the treesitter nodes `out` in the error regions (error rows widened to their
+--- paragraph) by the tolerant scanner's; keeps only nodes overlapping rows lo..hi. Errors
+--- raise (the caller's pcall keeps the treesitter result).
 local function recover(bufnr, tree, out, lo, hi)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local rows = error_rows(tree:root())
@@ -194,6 +196,24 @@ local function collect(bufnr, tree, lo, hi)
   return out
 end
 
+--- Full result of a broken tree per buffer: {tick, nodes, recovered}. A range detect on a
+--- broken tree needs the whole tree's error regions, so it is served from here while the
+--- changedtick is unchanged (the refresh just computed it). Entries of invalid buffers are
+--- dropped on every store; forget() drops one on detach.
+local memo = {} ---@type table<integer, {tick: integer, nodes: inkmath.MathNode[], recovered: boolean}>
+M._memo = memo
+
+--- Copies of the nodes overlapping lo..hi (callers mutate nodes, e.g. numbering ids).
+local function from_memo(m, lo, hi)
+  local out = {}
+  for _, n in ipairs(m.nodes) do
+    if n.range.srow <= hi and n.range.erow >= lo then
+      out[#out + 1] = { id = n.id, kind = n.kind, src = n.src, env = n.env, range = vim.deepcopy(n.range) }
+    end
+  end
+  return out
+end
+
 --- @param srow? integer first row (inclusive) to look at; default: whole buffer
 --- @param erow? integer last row (inclusive)
 --- @return inkmath.MathNode[] nodes, boolean has_error, boolean recovered
@@ -204,15 +224,50 @@ function M.detect(bufnr, srow, erow)
   local tree = parser:parse()[1]
   if not tree then return {}, false, false end
   local lo, hi = srow or 0, erow or math.huge
-  local out = collect(bufnr, tree, lo, hi)
-  if not tree:root():has_error() then return out, false, false end
-  -- the error region is computed on the whole tree, so a range detect equals the full one
-  local rok, res = pcall(function()
-    local all = (lo == 0 and hi == math.huge) and out or collect(bufnr, tree, 0, math.huge)
-    return recover(bufnr, tree, all, lo, hi)
-  end)
-  if rok and res then return res, true, true end
-  return out, true, false
+  if not tree:root():has_error() then
+    memo[bufnr] = nil
+    return collect(bufnr, tree, lo, hi), false, false
+  end
+  local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+  local m = memo[bufnr]
+  if not (m and m.tick == tick) then
+    -- the error region is computed on the whole tree, so a range detect equals the full one
+    local all = collect(bufnr, tree, 0, math.huge)
+    local rok, res = pcall(recover, bufnr, tree, all, 0, math.huge)
+    m = { tick = tick, nodes = rok and res or all, recovered = rok and res ~= nil }
+    for b in pairs(memo) do
+      if not vim.api.nvim_buf_is_valid(b) then memo[b] = nil end
+    end
+    memo[bufnr] = m
+  end
+  return from_memo(m, lo, hi), true, m.recovered
+end
+
+--- Drop the buffer's memoized result (detach).
+function M.forget(bufnr) memo[bufnr] = nil end
+
+--- Live preview only: the formula being typed at (row, col) on a broken tree, whose closer
+--- is not typed yet (see recover.open_at). nil when there is none.
+---@return inkmath.MathNode|nil
+function M.open_at(bufnr, row, col)
+  local ok, parser = pcall(vim.treesitter.get_parser, bufnr, "latex", { error = false })
+  local tree = ok and parser and parser:parse()[1]
+  if not tree then return nil end
+  local function blank(r) return vim.api.nvim_buf_get_lines(bufnr, r, r + 1, false)[1]:match("^%s*$") ~= nil end
+  local last = vim.api.nvim_buf_line_count(bufnr) - 1
+  if row > last or blank(row) then return nil end
+  local lo, hi = row, row
+  while lo > 0 and not blank(lo - 1) do
+    lo = lo - 1
+  end
+  while hi < last and not blank(hi + 1) do
+    hi = hi + 1
+  end
+  local para = vim.api.nvim_buf_get_lines(bufnr, lo, hi + 1, false)
+  local n = require("inkmath.detect.recover").open_at(para, lo, row, col)
+  if not n or in_skip(tree, n.range) then return nil end
+  n.id = node_id(n.kind, nil, n.src)
+  return n
 end
 
 --- Lines before \begin{document} ({} if there is none).

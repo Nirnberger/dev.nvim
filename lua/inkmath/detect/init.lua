@@ -67,4 +67,17 @@ function M.detect(bufnr, srow, erow)
   return nodes, { has_error = tree_error and recovered ~= true, tree_error = tree_error }
 end
 
+--- Live preview only, after detect() found no node at the cursor on a broken tree: the
+--- formula being typed whose closer is missing (detectors with an `open_at`; else nil).
+---@param bufnr integer
+---@param row integer 0-based
+---@param col integer 0-based byte column
+---@return inkmath.MathNode|nil
+function M.open_at(bufnr, row, col)
+  local spec = registry.of(bufnr)
+  local ok, mod = pcall(require, spec and spec.detector or "")
+  if not (ok and type(mod) == "table" and mod.open_at) then return nil end
+  return mod.open_at(bufnr, row, col)
+end
+
 return M

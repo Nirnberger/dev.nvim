@@ -199,6 +199,33 @@ T["range detect equals the filtered full detect (mis-paired node above the range
   parity(DOC, { { 13, 13 } })
 end
 
+T["broken tree: the full result is memoized per changedtick"] = function()
+  local rec = require("inkmath.detect.recover")
+  local orig, calls = rec.scan, 0
+  rec.scan = function(...)
+    calls = calls + 1
+    return orig(...)
+  end
+  local ok, err = pcall(function()
+    local b = h.buf({ "$a$ $b$ $c", "", "$y$", "", "$z$" }, "tex")
+    local full = detect.detect(b)
+    eq(calls > 0, true)
+    calls = 0
+    eq(srcs((detect.detect(b, 4, 4))), { "z" })
+    eq(srcs((detect.detect(b, 2, 2))), { "y" })
+    -- callers may mutate the nodes (numbering): the memo hands out copies
+    full[1].id = full[1].id .. "#1"
+    eq(vim.tbl_map(key, (detect.detect(b))), vim.tbl_map(key, (detect.detect(b))))
+    eq(detect.detect(b)[1].id:find("#", 1, true), nil)
+    eq(calls, 0)
+    vim.api.nvim_buf_set_lines(b, 4, 5, false, { "$w$" })
+    eq(srcs((detect.detect(b, 4, 4))), { "w" })
+    eq(calls > 0, true)
+  end)
+  rec.scan = orig
+  if not ok then error(err, 0) end
+end
+
 T["range detect parity on random broken buffers"] = function()
   local pieces =
     { "$a$", "$", "$$", "\\(", "\\)", "\\[", "\\]", "{", "}", "x", "\\frac{", "\\begin{align}", "\\end{align}", "" }

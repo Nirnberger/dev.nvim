@@ -72,10 +72,20 @@ local function mask_all(lines)
   return out
 end
 
---- @param lines string[] lines[1] is buffer row `first_row`
---- @param first_row integer
---- @return {kind: string, src: string, env: string|nil, range: {srow: integer, scol: integer, erow: integer, ecol: integer}}[]
-function M.scan(lines, first_row)
+--- Original text from (r1,c1) to (r2,c2), both inclusive, 1-based columns.
+local function slice(lines, r1, c1, r2, c2)
+  if r1 == r2 then return lines[r1]:sub(c1, c2) end
+  local parts = { lines[r1]:sub(c1) }
+  for r = r1 + 1, r2 - 1 do
+    parts[#parts + 1] = lines[r]
+  end
+  parts[#parts + 1] = lines[r2]:sub(1, c2)
+  return table.concat(parts, "\n")
+end
+
+--- The scanner. `unpaired` (optional) collects the `$`, `$$`, `\(`, `\[` openers that found no
+--- closer, in source order: {r, c, open} (lines index, 1-based column, the opener text).
+local function run(lines, first_row, unpaired)
   local n = #lines
   local m = mask_all(lines)
   local blank = {}
@@ -92,17 +102,6 @@ function M.scan(lines, first_row)
   -- openers that already failed to find a closer: no later one of the same kind can succeed
   local failed = {}
   local noend = {}
-
-  --- Original text from (r1,c1) to (r2,c2), both inclusive, 1-based columns.
-  local function slice(r1, c1, r2, c2)
-    if r1 == r2 then return lines[r1]:sub(c1, c2) end
-    local parts = { lines[r1]:sub(c1) }
-    for r = r1 + 1, r2 - 1 do
-      parts[#parts + 1] = lines[r]
-    end
-    parts[#parts + 1] = lines[r2]:sub(1, c2)
-    return table.concat(parts, "\n")
-  end
 
   --- First closer of `kind` at/after (r,c), not beyond row `last`. Returns row, start col, end col (inclusive).
   local function find_close(r, c, last, kind)
@@ -182,7 +181,7 @@ function M.scan(lines, first_row)
             if not er and not saw then noend[name] = { r, c } end
           end
           if er then
-            emit("block", r, c, er, ec, slice(r, c, er, ec), name)
+            emit("block", r, c, er, ec, slice(lines, r, c, er, ec), name)
             r, c = er, ec + 1
           else
             c = after
@@ -196,9 +195,10 @@ function M.scan(lines, first_row)
             if not er then failed[fk] = true end
           end
           if er then
-            emit(nx == "(" and "inline" or "display", r, c, er, ce, trim(slice(r, c + 2, er, cs - 1)))
+            emit(nx == "(" and "inline" or "display", r, c, er, ce, trim(slice(lines, r, c + 2, er, cs - 1)))
             r, c = er, ce + 1
           else
+            if unpaired then unpaired[#unpaired + 1] = { r, c, "\\" .. nx } end
             c = c + 2
           end
         else
@@ -215,9 +215,10 @@ function M.scan(lines, first_row)
         end
         if er then
           local open = double and 2 or 1
-          emit(double and "display" or "inline", r, c, er, ce, trim(slice(r, c + open, er, cs - 1)))
+          emit(double and "display" or "inline", r, c, er, ce, trim(slice(lines, r, c + open, er, cs - 1)))
           r, c = er, ce + 1
         else
+          if unpaired then unpaired[#unpaired + 1] = { r, c, double and "$$" or "$" } end
           c = c + (double and 2 or 1)
         end
       else
@@ -226,6 +227,49 @@ function M.scan(lines, first_row)
     end
   end
   return out
+end
+
+--- @param lines string[] lines[1] is buffer row `first_row`
+--- @param first_row integer
+--- @return {kind: string, src: string, env: string|nil, range: {srow: integer, scol: integer, erow: integer, ecol: integer}}[]
+function M.scan(lines, first_row) return run(lines, first_row) end
+
+--- The formula being typed at the cursor, for the live preview only (refresh never renders
+--- it): the last unpaired `$`, `$$`, `\(` or `\[` at/before (row, col) in the cursor's
+--- paragraph, up to the paragraph end. nil when there is none or its body is empty.
+--- @param lines string[] lines[1] is buffer row `first_row`; must hold the whole paragraph
+--- @param first_row integer
+--- @param row integer cursor row (0-based, buffer)
+--- @param col integer cursor byte column (0-based)
+--- @return {kind: string, src: string, range: {srow: integer, scol: integer, erow: integer, ecol: integer}}|nil
+function M.open_at(lines, first_row, row, col)
+  local k = row - first_row + 1
+  local function blank(i) return lines[i]:match("^%s*$") ~= nil end
+  if not lines[k] or blank(k) then return nil end
+  local lo, hi = k, k
+  while lo > 1 and not blank(lo - 1) do
+    lo = lo - 1
+  end
+  while hi < #lines and not blank(hi + 1) do
+    hi = hi + 1
+  end
+  local para = vim.list_slice(lines, lo, hi)
+  local unpaired = {}
+  run(para, first_row + lo - 1, unpaired)
+  local kr, best = k - lo + 1, nil
+  for _, u in ipairs(unpaired) do
+    if u[1] < kr or (u[1] == kr and u[2] - 1 <= col) then best = u end
+  end
+  if not best then return nil end
+  local r, c, open = best[1], best[2], best[3]
+  local last = #para
+  local src = trim(slice(para, r, c + #open, last, #para[last]))
+  if src == "" then return nil end
+  return {
+    kind = (open == "$" or open == "\\(") and "inline" or "display",
+    src = src,
+    range = { srow = first_row + lo - 1 + r - 1, scol = c - 1, erow = first_row + hi - 1, ecol = #para[last] },
+  }
 end
 
 return M

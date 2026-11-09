@@ -986,6 +986,35 @@ T["cases"]["folds: inline images on a folded line are not drawn"] = function()
   eq(srow(3), 2)
 end
 
+-- a formula being typed before its closer: the tree is broken and refresh leaves it as source,
+-- but the live preview shows it (the unpaired opener before the cursor, to the paragraph end)
+T["cases"]["preview shows a formula whose closer is not typed yet"] = function()
+  local mathjax = require("inkmath.render.mathjax")
+  local cursor = require("inkmath.view.cursor")
+  orig.mode, orig.start, orig.preview = core._mode, mathjax.start, cursor.preview
+  core._mode = function() return "i" end
+  mathjax.start = function() return true end
+  local got = {}
+  cursor.preview = function(_, _, node) got[#got + 1] = node.src end
+  for _, case in ipairs({
+    { { "Some text $x^2" }, { 1, 14 } },
+    { { "Some text \\(x^2" }, { 1, 15 } },
+    { { "Intro $a$ text.", "", "Some text $x^2", "", "Later $b$ more." }, { 3, 14 } },
+  }) do
+    local buf = setup_buf(case[1], "tex")
+    core.attach(buf, { sync = true })
+    vim.api.nvim_win_set_cursor(0, case[2])
+    got = {}
+    vim.cmd("doautocmd CursorMovedI")
+    vim.wait(300, function() return #got > 0 end, 10)
+    eq(got, { "x^2" })
+    -- refresh never places the open formula
+    for id in pairs(state.get(buf).nodes) do
+      eq(id:find(require("inkmath.detect").node_id("inline", nil, "x^2"), 1, true), nil)
+    end
+  end
+end
+
 T["cases"]["M4: no live preview while images are hidden"] = function()
   local mathjax = require("inkmath.render.mathjax")
   local cursor = require("inkmath.view.cursor")

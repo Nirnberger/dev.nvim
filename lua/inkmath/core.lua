@@ -35,7 +35,7 @@ local timers = {} ---@type table<integer, table<string, uv.uv_timer_t>>
 local gen = {} ---@type table<integer, integer> bumped when in-flight renders become stale
 local last_ctx = {} ---@type table<integer, inkmath.RenderCtx> ctx of the latest refresh
 local skipped = {} ---@type table<integer, table> range of the node refresh skipped under the cursor
-local parsed_clean = {} ---@type table<integer, true> buffer has had an error-free parse since attach
+local parsed_clean = {} ---@type table<integer, true> a detect since attach was usable: no parse errors, or all recovered (not has_error)
 local folded = {} ---@type table<integer, table<string, integer>> node id -> row, not placed: in a closed fold
 local cleared_conceal = {} ---@type table<integer, true> vimtex math conceal cleared (reload on detach)
 local globals_done = false
@@ -283,10 +283,12 @@ function M.refresh(buf, range)
   elseif vim.bo[buf].filetype == "tex" and config.get(buf).equation_numbers == "document" then
     labels.number(buf, all)
   end
-  -- An unclosed `$`/`{` turns the rest of the document into one ERROR node, so most
-  -- formulas below it are not detected. After a clean parse, freeze instead: keep the
-  -- existing placements (their extmarks follow the text) and start no renders until
-  -- the parse is clean again. Buffers broken since attach never freeze.
+  -- An unclosed `$`/`{` breaks the parse tree; the detector re-scans the error
+  -- paragraphs, so formulas around it keep rendering (has_error stays false). Only when
+  -- that scan failed (has_error) and a detect since attach was usable (clean or
+  -- recovered), freeze: keep the existing placements (their extmarks follow the text)
+  -- and start no renders until a detect is usable again. If no detect since attach
+  -- was usable, the unreliable result is refreshed as is.
   if not dinfo.has_error then parsed_clean[buf] = true end
   local frozen = dinfo.has_error and parsed_clean[buf] == true
   local seen = {}
@@ -525,15 +527,24 @@ function on_cursor(buf)
     after_parse(buf, row, function()
       if not (attached[buf] and vim.api.nvim_win_is_valid(win) and insert_mode()) then return end
       if conceal.is_hidden(buf) then return cursor.close_preview(buf) end
-      for _, n in ipairs(detect.detect(buf, row, row)) do
+      local nodes, info = detect.detect(buf, row, row)
+      local hit
+      for _, n in ipairs(nodes) do
         local r = n.range
         local after = row > r.srow or col >= r.scol
         local before = row < r.erow or col <= r.ecol
         if after and before then
-          local ctx = M.ctx(buf)
-          if ctx then cursor.preview(buf, win, n, ctx) end
-          return
+          hit = n
+          break
         end
+      end
+      -- a formula whose closer is not typed yet breaks the tree and stays source for
+      -- refresh; the preview still shows it (opener before the cursor to paragraph end)
+      if not hit and info.tree_error then hit = detect.open_at(buf, row, col) end
+      if hit then
+        local ctx = M.ctx(buf)
+        if ctx then cursor.preview(buf, win, hit, ctx) end
+        return
       end
       cursor.close_preview(buf)
     end)
@@ -722,6 +733,8 @@ function M.detach(buf)
   fill.forget(buf)
   residency.cancel(buf)
   incr.forget(buf)
+  local latex = package.loaded["inkmath.detect.latex"]
+  if latex then latex.forget(buf) end -- memoized broken-tree result
   parsed_clean[buf] = nil
   skipped[buf], drain[buf], outstanding[buf], last_event[buf] = nil, nil, nil, nil
   state.reset(buf)

@@ -116,4 +116,39 @@ T["starred environment keeps the star in env"] = function()
   eq(n[1].env, "align*")
 end
 
+-- open_at: the formula being typed (unpaired opener before the cursor), for the live preview
+T["open_at: unclosed dollar and paren"] = function()
+  local n = recover.open_at({ "Some text $x^2" }, 0, 0, 14)
+  eq({ n.kind, n.src, n.range }, { "inline", "x^2", { srow = 0, scol = 10, erow = 0, ecol = 14 } })
+  n = recover.open_at({ "Some text \\(x^2" }, 0, 0, 15)
+  eq({ n.kind, n.src, n.range }, { "inline", "x^2", { srow = 0, scol = 10, erow = 0, ecol = 15 } })
+end
+T["open_at: display openers"] = function()
+  local n = recover.open_at({ "a \\[x" }, 0, 0, 5)
+  eq({ n.kind, n.src }, { "display", "x" })
+  n = recover.open_at({ "a $$x" }, 0, 0, 5)
+  eq({ n.kind, n.src }, { "display", "x" })
+end
+T["open_at: only the cursor's paragraph, with row offset"] = function()
+  local lines = { "Intro $a$ text.", "", "Some text $x^2", "", "Later $b$ ..." }
+  local n = recover.open_at(lines, 10, 12, 14)
+  eq({ n.src, n.range }, { "x^2", { srow = 12, scol = 10, erow = 12, ecol = 14 } })
+  eq(recover.open_at(lines, 10, 14, 13), nil)
+  eq(recover.open_at(lines, 10, 11, 0), nil) -- blank line
+end
+T["open_at: runs to the paragraph end"] = function()
+  local n = recover.open_at({ "Text $x +", "y", "", "z" }, 0, 0, 9)
+  eq({ n.src, n.range }, { "x +\ny", { srow = 0, scol = 5, erow = 1, ecol = 1 } })
+end
+T["open_at: nothing open before the cursor"] = function()
+  eq(recover.open_at({ "$a$ b" }, 0, 0, 5), nil)
+  eq(recover.open_at({ "Some text $x^2" }, 0, 0, 4), nil) -- cursor before the opener
+  eq(recover.open_at({ "% $x" }, 0, 0, 4), nil)
+  eq(recover.open_at({ "\\$x" }, 0, 0, 3), nil)
+end
+T["open_at: the last unpaired opener wins"] = function()
+  eq(recover.open_at({ "$a$ b $c" }, 0, 0, 8).src, "c")
+  eq(recover.open_at({ "$a b \\(c" }, 0, 0, 8).src, "c")
+end
+
 return T
