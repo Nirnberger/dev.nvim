@@ -31,7 +31,7 @@ tools() { # <term>: executables it needs
   case "$1" in
     xterm) echo "xterm xvfb-run magick" ;;
     foot) echo "foot sway grim" ;;
-    wezterm) echo "xvfb-run magick" ;;
+    wezterm) echo "xvfb-run magick jq" ;;
     konsole) echo "konsole xvfb-run magick" ;;
     *) die "unknown terminal: $1" ;;
   esac
@@ -204,7 +204,12 @@ text() {
   [ "$term" = wezterm ] || exit 2
   sock="$(ls "$d"/run/wezterm/gui-sock-* 2>/dev/null | head -n 1)"
   [ -n "$sock" ] || return 1
-  XDG_RUNTIME_DIR="$d/run" WEZTERM_UNIX_SOCKET="$sock" "$(wezterm_bin)" cli --no-auto-start get-text 2>/dev/null
+  # without $WEZTERM_PANE get-text needs the pane id
+  local -a cli=(env XDG_RUNTIME_DIR="$d/run" WEZTERM_UNIX_SOCKET="$sock" "$(wezterm_bin)" cli --no-auto-start)
+  local pane
+  pane="$("${cli[@]}" list --format json | jq -r '.[0].pane_id // empty')"
+  [ -n "$pane" ] || { echo "realterm: wezterm cli list shows no pane" >&2; return 1; }
+  "${cli[@]}" get-text --pane-id "$pane"
 }
 
 case "$sub" in

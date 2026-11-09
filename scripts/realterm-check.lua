@@ -8,5 +8,8 @@ local ready = vim.json.decode(table.concat(vim.fn.readfile(ready_file), "\n"))
 local ok, why = require("tests.realterm").drawn(ready, ppm)
 if not ok then
   print(why)
+  local rt = require("tests.realterm")
+  print(rt.cellmap(ppm, ready.cell.w, ready.cell.h, ready.columns, math.min(ready.lines, 20), { 28, 28, 28 }))
+  print("paints: " .. vim.json.encode(ready.paints))
   os.exit(1)
 end

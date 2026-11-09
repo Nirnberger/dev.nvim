@@ -94,7 +94,7 @@ local function launch(t, dir, doc, broken)
   end
   function s.text()
     local r = vim.system({ "bash", script, "text", t.term, dir }, { text = true }):wait(10000)
-    return r.code == 0 and r.stdout or nil
+    return r.code == 0 and r.stdout or nil, vim.trim((r.stderr or "")):sub(-1000)
   end
   function s.stop()
     pcall(vim.uv.kill, -proc.pid, "sigterm")
@@ -134,7 +134,10 @@ local function run(t, broken, want, timeout)
       out.measure = ppm and realterm.measure(ready, ppm) or nil
       return out.measure ~= nil and want(out.measure)
     end, 200)
-    out.text = s.text()
+    out.text, out.text_err = s.text()
+    local ppm = s.shot()
+    local bg = out.measure and out.measure[1] and out.measure[1].bg or { 28, 28, 28 }
+    out.map = ppm and realterm.cellmap(ppm, ready.cell.w, ready.cell.h, 80, 12, bg) or "(no screen)"
     return out
   end)
   s.stop()
@@ -166,11 +169,15 @@ local function check(t)
     ("%s: backend=%s cell=%dx%d %s"):format(t.name, ready.backend, ready.cell.w, ready.cell.h, table.concat(notes, " "))
   )
   for _, r in ipairs(m) do
-    assert(r.inked > 50, ("%s: image %d not drawn (%d inked samples)"):format(t.name, r.id, r.inked))
-    eq(r.above, 0)
+    local where = ("paints %s; inked cells of the top 12 rows:\n%s"):format(vim.json.encode(ready.paints), res.map)
+    assert(r.inked > 50, ("%s: image %d not drawn (%d inked samples); %s"):format(t.name, r.id, r.inked, where))
+    assert(
+      r.above == 0,
+      ("%s: %d inked samples in the empty line above image %d; %s"):format(t.name, r.above, r.id, where)
+    )
   end
   if t.term == "wezterm" then
-    local text = assert(res.text, "wezterm cli get-text gave nothing")
+    local text = assert(res.text, "wezterm cli get-text gave nothing: " .. tostring(res.text_err))
     local lines = vim.split(text, "\n", { plain = true })
     assert(lines[1]:find("# Title", 1, true), "no title on screen:\n" .. text)
     for _, bad in ipairs({ "\27", "1337", "_G", "Ga=", "File=" }) do

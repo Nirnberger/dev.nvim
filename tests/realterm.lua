@@ -77,6 +77,36 @@ function M.measure(ready, ppm)
   return out
 end
 
+--- Which cells of the top left `cols` x `rows` have ink: one string per row, '#' inked, '.' not
+--- (diagnostics in failure messages, the CI keeps no screen images of the tests).
+---@return string
+function M.cellmap(ppm, cw, ch, cols, rows, bg)
+  local w, h, px = M.read_ppm(ppm)
+  if not px then return "(no screen)" end
+  local out = {}
+  for r = 0, rows - 1 do
+    local line = {}
+    for c = 0, cols - 1 do
+      local x0, y0 = c * cw, r * ch
+      local n = (x0 + cw <= w and y0 + ch <= h) and M.ink(px, x0, y0, x0 + cw, y0 + ch, bg) or 0
+      line[#line + 1] = n >= 2 and "#" or "."
+    end
+    out[#out + 1] = table.concat(line)
+  end
+  local r, g, b = px(w - 1, h - 1)
+  return ("screen %dx%d, corner pixel %d,%d,%d, bg %d,%d,%d\n%s"):format(
+    w,
+    h,
+    r,
+    g,
+    b,
+    bg[1],
+    bg[2],
+    bg[3],
+    table.concat(out, "\n")
+  )
+end
+
 --- Is every painted image drawn? At least 3 inked samples and 0.5 % of them: a formula is thin
 --- strokes (display math is centered in a wide box), an inline one only a few cells.
 ---@return boolean ok
