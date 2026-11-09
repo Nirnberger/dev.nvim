@@ -1,7 +1,13 @@
 -- Child Neovim for scripts/screenshots.sh: inkmath with a fixed UI. Once rendering has settled
 -- (an InkMathRender event, every formula placed or marked as error, render queue and workers
 -- idle for 0.5 s) it writes
--- $INKMATH_SHOT_READY: { formulas, placed, errors, cell = {w, h}, columns, lines }.
+-- $INKMATH_SHOT_READY: { formulas, placed, errors, cell = {w, h}, columns, lines, backend, mode, paints }.
+-- Also the child of tests/test_terminals_real.lua. Overlay backends (iTerm2, Sixel, kitty overlay):
+-- every paint is recorded (`paints`: { id, row, col, cols, rows }, 1-based screen cells, last one per
+-- image), and the ready file waits until there is one and none came for 0.5 s.
+-- Until then <ready file>.status shows what the child sees (diagnostics for a run that hangs).
+-- $INKMATH_SHOT_BACKEND forces term.backend; $INKMATH_SHOT_BREAK=1 sends the paints without their
+-- image (cursor moves only): the negative control of the pixel checks.
 local root = assert(vim.env.INKMATH_ROOT, "INKMATH_ROOT not set")
 local ready_file = assert(vim.env.INKMATH_SHOT_READY, "INKMATH_SHOT_READY not set")
 vim.opt.runtimepath:prepend(root)
@@ -20,7 +26,26 @@ vim.api.nvim_create_autocmd("FileType", {
   pattern = { "tex", "markdown" },
   callback = function(ev) pcall(vim.treesitter.start, ev.buf) end,
 })
-require("inkmath").setup({})
+require("inkmath").setup({ term = { backend = vim.env.INKMATH_SHOT_BACKEND or "auto" } })
+
+local paints, last_paint = {}, 0 ---@type table<integer, table>, integer
+for _, mod in ipairs({
+  "inkmath.term.backends.iterm2",
+  "inkmath.term.backends.kitty_overlay",
+  "inkmath.term.backends.sixel",
+}) do
+  local b = require(mod)
+  local paint = b.paint
+  b.paint = function(img, row, col)
+    local seqs = paint(img, row, col)
+    if #seqs > 0 then
+      paints[img.id] = { id = img.id, row = row, col = col, cols = img.cols, rows = img.rows }
+      last_paint = vim.uv.now()
+      if vim.env.INKMATH_SHOT_BREAK == "1" then return { ("\0277\27[%d;%dH\0278"):format(row, col) } end
+    end
+    return seqs
+  end
+end
 
 local seen = false
 vim.api.nvim_create_autocmd("User", { pattern = "InkMathRender", callback = function() seen = true end })
@@ -46,20 +71,47 @@ timer:start(
     local a = st.attached[1]
     -- every formula resolved: placed or marked as error (after the tectonic fallback)
     local resolved = a and a.formulas > 0 and a.placed + a.errors >= a.formulas
-    quiet = (seen and resolved and idle(st)) and quiet + 1 or 0
+    local b = require("inkmath.term.backend").current()
+    local painted = b.mode ~= "overlay" or (next(paints) ~= nil and vim.uv.now() - last_paint > 500)
+    quiet = (seen and resolved and painted and idle(st)) and quiet + 1 or 0
+    -- diagnostics for a run that never gets ready: what the child sees right now
+    vim.fn.writefile({
+      vim.json.encode({
+        seen = seen,
+        attached = a or vim.NIL,
+        idle = idle(st),
+        backend = b.name,
+        mode = b.mode,
+        why = require("inkmath.term.backend").why() or vim.NIL,
+        cell = require("inkmath.term.cells").cell_size() or vim.NIL,
+        paints = vim.tbl_count(paints),
+        term = vim.env.TERM or vim.NIL,
+        messages = vim.fn.execute("messages"):sub(-500),
+      }),
+    }, ready_file .. ".status")
     if quiet < 5 then return end
     timer:close()
     vim.cmd("echo ''")
     vim.cmd("redraw!")
-    vim.fn.writefile({
-      vim.json.encode({
-        formulas = a.formulas,
-        placed = a.placed,
-        errors = a.errors,
-        cell = require("inkmath.term.cells").cell_size() or vim.NIL,
-        columns = vim.o.columns,
-        lines = vim.o.lines,
-      }),
-    }, ready_file)
+    if b.mode == "overlay" then
+      -- :redraw! cleared the terminal and with it every overlay image: paint them all again
+      require("inkmath.view.overlay")._reset()
+      require("inkmath.view.overlay").repaint()
+    end
+    vim.schedule(function() -- after the repaint
+      vim.fn.writefile({
+        vim.json.encode({
+          formulas = a.formulas,
+          placed = a.placed,
+          errors = a.errors,
+          cell = require("inkmath.term.cells").cell_size() or vim.NIL,
+          columns = vim.o.columns,
+          lines = vim.o.lines,
+          backend = b.name,
+          mode = b.mode,
+          paints = vim.tbl_values(paints),
+        }),
+      }, ready_file)
+    end)
   end)
 )

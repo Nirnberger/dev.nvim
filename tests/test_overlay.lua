@@ -189,4 +189,35 @@ T["an empty paint is retried on the next repaint"] = function()
   eq(count("paint"), 1)
 end
 
+T["inline images after concealed formulas on the same line sit on their reserved cells"] = function()
+  -- found in real terminals (scripts/screenshots.sh, inline.md): screenpos() counts concealed
+  -- text, so every image after the first one on a line was painted too far right
+  local buf = setup({ "ab $x$, $yy$, $z$ end" })
+  vim.wo.conceallevel = 2
+  vim.wo.number = false
+  local function put(id, s, e, cols)
+    placer.place(
+      buf,
+      { id = id, kind = "inline", src = "x", range = { srow = 0, scol = s, erow = 0, ecol = e } },
+      { key = id, path = "/x.png", cols = cols, rows = 1 }
+    )
+  end
+  put("a", 3, 6, 2)
+  put("b", 8, 12, 3)
+  put("c", 14, 17, 1)
+  vim.cmd("redraw")
+  sent = {}
+  overlay._reset()
+  overlay.repaint()
+  flush()
+  -- screen: "ab " .. 2 cells .. ", " .. 3 cells .. ", " .. 1 cell .. " end"
+  local cols = {}
+  for _, s in ipairs(sent) do
+    local c = s:match("^paint%d+@1,(%d+)$")
+    if c then cols[#cols + 1] = tonumber(c) end
+  end
+  table.sort(cols)
+  eq(cols, { 4, 8, 13 })
+end
+
 return T

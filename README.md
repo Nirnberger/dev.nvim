@@ -168,7 +168,8 @@ them against a stubbed terminal.
 
 These need a real Ghostty/kitty window and have not been ticked off yet. The overlay backends
 (iTerm2, WezTerm, Konsole, foot/Sixel) need the same run in the respective terminal: images appear
-at the right cells, move with scrolling, disappear with their formula, and do not leave stale pixels.
+at the right cells, move with scrolling, disappear with their formula, and do not leave stale pixels. CI runs real xterm, foot, WezTerm (kitty and iTerm2 protocol) and Konsole
+(`tests/test_terminals_real.lua`); the real iTerm2 (macOS only) cannot be tested there.
 
 ```sh
 ./dev/run.sh dev/samples/document.tex

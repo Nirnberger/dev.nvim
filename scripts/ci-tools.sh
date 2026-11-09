@@ -2,7 +2,9 @@
 # Install CI tools via `gh release download` (the github.com/.../releases/download URLs are flaky).
 # Usage: scripts/ci-tools.sh [nvim-tag]   (needs GH_TOKEN; nvim-tag e.g. v0.12.0, stable, nightly)
 # Installs tree-sitter, tectonic and ImageMagick 7 (+ghostscript) into ~/.local/bin, neovim into ~/nvim; adds them to $GITHUB_PATH.
-# Linux also: kitty into ~/.local/kitty.app (+ xvfb/xauth/xkb libs via apt), sets INKMATH_REQUIRE_KITTY=1 in $GITHUB_ENV.
+# Linux also: kitty into ~/.local/kitty.app (+ xvfb/xauth/xkb libs via apt), sets INKMATH_REQUIRE_KITTY=1 in $GITHUB_ENV;
+#   the overlay terminals of scripts/realterm.sh (xterm, foot + sway + grim, Konsole via apt, WezTerm AppImage into
+#   ~/.local/opt/wezterm), sets INKMATH_REQUIRE_{XTERM,FOOT,WEZTERM,KONSOLE}=1.
 #        scripts/ci-tools.sh lint         installs only StyLua (Linux x86_64)
 set -euo pipefail
 
@@ -100,6 +102,33 @@ else
   ln -sf "$HOME/.local/kitty.app/bin/kitty" "$HOME/.local/kitty.app/bin/kitten" "$BIN/"
   # the kitty test must run on Linux CI, never skip
   [ -z "${GITHUB_ENV:-}" ] || echo "INKMATH_REQUIRE_KITTY=1" >> "$GITHUB_ENV"
+
+  # overlay terminals for tests/test_terminals_real.lua and scripts/screenshots.sh (scripts/realterm.sh):
+  # xterm (Sixel), foot under sway headless + grim (Sixel), Konsole (kitty overlay); libegl1 for WezTerm
+  started=$SECONDS
+  tpkgs=()
+  for exe in xterm foot sway grim konsole dbus-run-session; do
+    command -v "$exe" >/dev/null || case "$exe" in dbus-run-session) tpkgs+=(dbus) ;; *) tpkgs+=("$exe") ;; esac
+  done
+  dpkg -s libegl1 >/dev/null 2>&1 || tpkgs+=(libegl1)
+  if [ "${#tpkgs[@]}" -gt 0 ]; then
+    timeout 180 sudo apt-get update -qq -o Acquire::Retries=2
+    timeout 600 sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l \
+      apt-get install -y -qq --no-install-recommends -o Acquire::Retries=2 "${tpkgs[@]}" >/dev/null
+  fi
+  echo "ci-tools: terminals via apt (${tpkgs[*]:-none}) took $((SECONDS - started)) s"
+  # WezTerm: the official AppImage (Ubuntu 20.04 build, runs on newer), extracted (no FUSE)
+  WEZ=WezTerm-20240203-110809-5046fc22-Ubuntu20.04.AppImage
+  gh release download 20240203-110809-5046fc22 -R wezterm/wezterm -p "$WEZ" -D "$TMP"
+  verify 34010a07076d2272c4d4f94b5e0dae608a679599e8d729446323f88f956c60f0 "$TMP/$WEZ"
+  rm -rf "$HOME/.local/opt/wezterm"
+  mkdir -p "$HOME/.local/opt/wezterm"
+  chmod +x "$TMP/$WEZ"
+  (cd "$HOME/.local/opt/wezterm" && "$TMP/$WEZ" --appimage-extract >/dev/null)
+  ln -sf "$HOME/.local/opt/wezterm/squashfs-root/usr/bin/wezterm" "$BIN/wezterm"
+  for t in XTERM FOOT WEZTERM KONSOLE; do
+    [ -z "${GITHUB_ENV:-}" ] || echo "INKMATH_REQUIRE_$t=1" >> "$GITHUB_ENV"
+  done
 fi
 
 [ -z "${GITHUB_PATH:-}" ] || echo "$BIN" >> "$GITHUB_PATH"

@@ -45,7 +45,10 @@ end
 local da1 ---@type boolean|nil memoized for the session: a reset must not cost 200 ms again
 local function query_da1()
   if da1 ~= nil then return da1 end
-  if #vim.api.nvim_list_uis() == 0 then return false end
+  if #vim.api.nvim_list_uis() == 0 then
+    M._retry_on_ui()
+    return false
+  end
   local answered, sixel = false, false
   local group = vim.api.nvim_create_augroup("inkmath_da1", { clear = true })
   vim.api.nvim_create_autocmd("TermResponse", {
@@ -61,8 +64,66 @@ local function query_da1()
   kitty.send("\27[c")
   vim.wait(200, function() return answered end, 10)
   pcall(vim.api.nvim_del_augroup_by_id, group)
-  if answered then da1 = sixel end -- no answer may just be slowness (ssh): ask again next time
+  if answered then
+    da1 = sixel
+  else
+    M._watch_late() -- slow terminal (ssh, startup): the reply may still come
+  end
   return sixel
+end
+
+--- Called when a DA1 reply with Sixel arrives after the probe gave up: detect again and
+--- attach what the failed probe left unattached.
+function M._late_reply()
+  da1 = true
+  require("inkmath.env").rearm()
+  require("inkmath.api")._reapply()
+end
+
+local ui_wait = false
+--- No UI at probe time (startup, before the TUI attaches): ask again on UIEnter.
+function M._retry_on_ui()
+  if ui_wait then return end
+  ui_wait = true
+  vim.api.nvim_create_autocmd("UIEnter", {
+    group = vim.api.nvim_create_augroup("inkmath_da1_ui", { clear = true }),
+    once = true,
+    callback = function()
+      ui_wait = false
+      vim.schedule(function()
+        require("inkmath.env").rearm()
+        require("inkmath.api")._reapply()
+      end)
+    end,
+  })
+end
+
+local watching = false
+--- Forget the memoized DA1 answer and the late-reply watcher (tests).
+function M._forget()
+  da1 = nil
+  watching = false
+  pcall(vim.api.nvim_del_augroup_by_name, "inkmath_da1_late")
+end
+
+--- Keep listening for the DA1 reply the probe did not wait for (once per session).
+function M._watch_late()
+  if watching or da1 ~= nil then return end
+  watching = true
+  vim.api.nvim_create_autocmd("TermResponse", {
+    group = vim.api.nvim_create_augroup("inkmath_da1_late", { clear = true }),
+    callback = function(ev)
+      local seq = (type(ev.data) == "table" and ev.data.sequence) or vim.v.termresponse or ""
+      if not seq:match("\27%[%?[%d;]+c") then return end
+      watching = false
+      if M.da1_has_sixel(seq) then
+        vim.schedule(M._late_reply)
+      else
+        da1 = false
+      end
+      return true
+    end,
+  })
 end
 
 ---@param env? table
