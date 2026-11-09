@@ -84,12 +84,13 @@ function M.scan(lines, first_row)
   end
   local out = {}
 
-  local function para_end(r)
-    while r < n and not blank[r + 1] do
-      r = r + 1
-    end
-    return r
+  -- pend[r]: last row of the paragraph containing row r (one backward pass)
+  local pend = {}
+  for r = n, 1, -1 do
+    pend[r] = (r < n and not blank[r + 1] and not blank[r]) and pend[r + 1] or r
   end
+  -- openers that already failed to find a closer: no later one of the same kind can succeed
+  local failed = {}
 
   --- Original text from (r1,c1) to (r2,c2), both inclusive, 1-based columns.
   local function slice(r1, c1, r2, c2)
@@ -125,21 +126,23 @@ function M.scan(lines, first_row)
   end
 
   local function find_env_end(r, c, name)
-    local b, e = "\\begin{" .. name .. "}", "\\end{" .. name .. "}"
+    local pn = vim.pesc(name)
+    local b, e = "\\begin%s*{" .. pn .. "}", "\\end%s*{" .. pn .. "}"
     local depth = 1
     for rr = r, n do
       local line = m[rr]
       local i = rr == r and c or 1
       while true do
-        local bs, es = line:find(b, i, true), line:find(e, i, true)
+        local bs, be = line:find(b, i)
+        local es, ee = line:find(e, i)
         if not bs and not es then break end
         if bs and (not es or bs < es) then
           depth = depth + 1
-          i = bs + #b
+          i = be + 1
         else
           depth = depth - 1
-          if depth == 0 then return rr, es + #e - 1 end
-          i = es + #e
+          if depth == 0 then return rr, ee end
+          i = ee + 1
         end
       end
     end
@@ -167,8 +170,9 @@ function M.scan(lines, first_row)
         if name then
           local base = name:gsub("%*$", "")
           local er, ec
-          if MATH_ENVS[base] then
+          if MATH_ENVS[base] and not failed["env:" .. name] then
             er, ec = find_env_end(r, after, name)
+            if not er then failed["env:" .. name] = true end
           end
           if er then
             emit("block", r, c, er, ec, slice(r, c, er, ec), base)
@@ -178,7 +182,12 @@ function M.scan(lines, first_row)
           end
         elseif nx == "(" or nx == "[" then
           local kind = nx == "(" and "paren" or "brack"
-          local er, cs, ce = find_close(r, c + 2, para_end(r), kind)
+          local fk = kind .. pend[r]
+          local er, cs, ce
+          if not failed[fk] then
+            er, cs, ce = find_close(r, c + 2, pend[r], kind)
+            if not er then failed[fk] = true end
+          end
           if er then
             emit(nx == "(" and "inline" or "display", r, c, er, ce, trim(slice(r, c + 2, er, cs - 1)))
             r, c = er, ce + 1
@@ -190,7 +199,13 @@ function M.scan(lines, first_row)
         end
       elseif ch == "$" then
         local double = line:sub(c + 1, c + 1) == "$"
-        local er, cs, ce = find_close(r, c + (double and 2 or 1), para_end(r), double and "dd" or "dollar")
+        local kind = double and "dd" or "dollar"
+        local fk = kind .. pend[r]
+        local er, cs, ce
+        if not failed[fk] then
+          er, cs, ce = find_close(r, c + (double and 2 or 1), pend[r], kind)
+          if not er then failed[fk] = true end
+        end
         if er then
           local open = double and 2 or 1
           emit(double and "display" or "inline", r, c, er, ce, trim(slice(r, c + open, er, cs - 1)))
