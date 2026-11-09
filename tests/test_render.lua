@@ -251,6 +251,94 @@ T["concurrent tectonic requests are batched"] = function()
   assert(spawns <= 2, "tectonic spawned " .. spawns .. " times")
 end
 
+-- plan B: this tectonic rejects the unstable `-Z continue-on-errors`
+local REJECT =
+  "error: invalid value 'continue-on-errors' for '-Z <option>': Unknown unstable option 'continue-on-errors'"
+
+--- tectonic._run that rejects the flag like an old/new tectonic would; returns the argv list
+--- of every tectonic run and the restore function.
+local function reject_flag()
+  local tectonic = require("inkmath.render.tectonic")
+  tectonic.reset_flag()
+  local orig_run, runs = tectonic._run, {}
+  tectonic._run = function(cmd, cb)
+    if cmd[1]:find("tectonic", 1, true) then
+      runs[#runs + 1] = cmd
+      if vim.tbl_contains(cmd, "-Z") then
+        return vim.schedule(function() cb({ code = 2, stdout = "", stderr = REJECT }) end)
+      end
+    end
+    return orig_run(cmd, cb)
+  end
+  return runs, function()
+    tectonic._run = orig_run
+    tectonic.reset_flag()
+  end
+end
+
+T["tectonic without -Z continue-on-errors: retried without the flag"] = function()
+  local tectonic = require("inkmath.render.tectonic")
+  require("inkmath.config").setup({ backend = "tectonic" })
+  local notes, orig_notify = {}, vim.notify
+  vim.notify = function(msg) notes[#notes + 1] = msg end
+  local runs, restore = reject_flag()
+  local ok, err = pcall(function()
+    local img, e = render_sync(node("\\int_0^{71} planb", "display"), ctx(), 90000)
+    eq(e, nil)
+    assert(vim.uv.fs_stat(img.path))
+    eq(#runs, 2)
+    eq(vim.tbl_contains(runs[1], "-Z"), true)
+    eq(vim.tbl_contains(runs[2], "-Z"), false)
+    eq(tectonic.flag_supported(), false)
+    -- the decision is kept: the next document starts without the flag
+    local img2, e2 = render_sync(node("\\int_0^{72} planb", "display"), ctx(), 90000)
+    eq(e2, nil)
+    assert(img2)
+    eq(#runs, 3)
+    eq(vim.tbl_contains(runs[3], "-Z"), false)
+    vim.wait(50)
+    eq(#notes, 1) -- warned once
+    assert(notes[1]:find("continue%-on%-errors"))
+  end)
+  restore()
+  vim.notify = orig_notify
+  assert(ok, err)
+end
+
+T["tectonic without the flag: inline formula is centered, not a failure"] = function()
+  require("inkmath.config").setup({ backend = "tectonic" })
+  local runs, restore = reject_flag()
+  local ok, err = pcall(function()
+    local img, e = render_sync(node("z_{cd}+w_{planb}"), ctx(), 90000)
+    eq(e, nil)
+    eq(img.rows, 1)
+    assert(img.cols >= 1 and img.ratio > 0)
+    eq(#runs, 2)
+  end)
+  restore()
+  assert(ok, err)
+end
+
+T["tectonic real TeX error does not retry and keeps the flag"] = function()
+  local tectonic = require("inkmath.render.tectonic")
+  require("inkmath.config").setup({ backend = "tectonic" })
+  tectonic.reset_flag()
+  local orig_run, runs = tectonic._run, 0
+  tectonic._run = function(cmd, cb)
+    if cmd[1]:find("tectonic", 1, true) then runs = runs + 1 end
+    return orig_run(cmd, cb)
+  end
+  local ok, err = pcall(function()
+    local img, e = render_sync(node("\\undefinedcommandxyz{x}"), ctx(), 90000)
+    eq(img, nil)
+    assert(e and e.message ~= "")
+    eq(runs, 1)
+    eq(tectonic.flag_supported(), true)
+  end)
+  tectonic._run = orig_run
+  assert(ok, err)
+end
+
 T["available reports both"] = function()
   local a = render.available()
   eq(a.mathjax, true)

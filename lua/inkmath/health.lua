@@ -192,6 +192,11 @@ function M.check()
     else
       h.warn("could not confirm tectonic supports -Z continue-on-errors (the fallback relies on it)")
     end
+    if not require("inkmath.render.tectonic").flag_supported() then
+      h.warn(
+        "tectonic rejected -Z continue-on-errors in this session: fallback formulas compile without it and are centered, not baseline-aligned"
+      )
+    end
   end
   exe(cfg.magick_cmd, "tectonic fallback: PDF to PNG")
   exe("gs", "tectonic fallback: PDF rendering")

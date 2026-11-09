@@ -214,8 +214,10 @@ In tmux (`--tmux`), repeat 1-12 and also:
   compiled (see [vimtex](#vimtex)). Unlabeled rows, numbers that are not plain
   (`\textup{A}1`) and projects never compiled still show the standalone numbering.
 - Display width is taken from the first window showing the buffer.
-- The tectonic fallback relies on tectonic's unstable `-Z continue-on-errors` flag
-  (checked by `:checkhealth inkmath`).
+- The tectonic fallback uses tectonic's unstable `-Z continue-on-errors` flag to read the
+  formula sizes. If a tectonic rejects it, inkmath warns once, compiles without it for the rest
+  of the session and centers the fallback formulas (no baseline alignment). `:checkhealth
+  inkmath` shows which case applies.
 - Typst, org and terminals without a graphics protocol (Alacritty, Apple Terminal, VS Code, the Linux console) are not supported.
 - An unclosed `$` or `{` in LaTeX source breaks the treesitter parse of the rest of
   the document. The paragraphs (blank-line separated) around the error are re-scanned

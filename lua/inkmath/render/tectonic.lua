@@ -41,13 +41,34 @@ local function wrap_math(node)
   return node.src -- block: full \begin..\end
 end
 
-local function build_doc(items)
+-- `-Z continue-on-errors` is an unstable tectonic option. `auctex` (below) needs it: preview logs
+-- the snippet sizes as TeX "errors". When tectonic rejects the option, the session switches to
+-- compiling without both (no sizes: inline formulas are centered instead of on the baseline).
+local flag_ok = true
+local warned = false
+
+--- True when the compile failed because tectonic does not know `-Z continue-on-errors`.
+local function flag_rejected(stderr)
+  stderr = stderr or ""
+  return stderr:find("Unknown unstable option", 1, true) ~= nil
+    or stderr:find("unexpected argument '-Z'", 1, true) ~= nil
+end
+
+--- False once tectonic rejected `-Z continue-on-errors` in this session.
+function M.flag_supported() return flag_ok end
+
+--- Forget a rejected flag (tests, :InkMath refresh after a tectonic update).
+function M.reset_flag()
+  flag_ok, warned = true, false
+end
+
+local function build_doc(items, auctex)
   local lines = {}
   vim.list_extend(lines, items[1].ctx.preamble or DEFAULT_PREAMBLE)
   vim.list_extend(lines, {
     "\\usepackage{xcolor}",
     -- `auctex` makes preview log the exact box size of every snippet
-    "\\usepackage[auctex,active,tightpage]{preview}",
+    auctex and "\\usepackage[auctex,active,tightpage]{preview}" or "\\usepackage[active,tightpage]{preview}",
     "\\setlength\\PreviewBorder{0pt}",
     "\\begin{document}",
   })
@@ -184,7 +205,7 @@ function M.batch(items, cb_each)
     if not M.available() then return fail_all("tectonic or magick not installed") end
     tmp = vim.fn.tempname()
     vim.fn.mkdir(tmp, "p")
-    vim.fn.writefile(build_doc(items), tmp .. "/doc.tex")
+    vim.fn.writefile(build_doc(items, flag_ok), tmp .. "/doc.tex")
 
     local first = items[1].ctx
     local cfg = config.of(first)
@@ -194,92 +215,114 @@ function M.batch(items, cb_each)
 
     -- -Z continue-on-errors: the auctex snippet markers are reported as TeX "errors", which
     -- tectonic would otherwise treat as fatal. Real errors are detected from the log below.
-    run(
-      argv("tectonic", "--untrusted", "-Z", "continue-on-errors", "--keep-logs", "--outdir", tmp, tmp .. "/doc.tex"),
-      guarded(function(res)
-        local snippets, first_err = parse_log(tmp .. "/doc.log")
-        if res.code ~= 0 or first_err or not vim.uv.fs_stat(tmp .. "/doc.pdf") then
-          local msg = first_err
-          if not msg then
-            local tail = vim.trim(res.stderr or "")
-            msg = tail ~= "" and (tail:match("[^\n]*$")) or "tectonic failed"
-          end
-          cleanup()
-          return fail_all(msg)
-        end
-
-        local step
-        -- per-item guard: a thrown error fails only item i, then continues with the next
-        local function item_guard(i, fn)
-          return function(...)
-            local ok, e = pcall(fn, ...)
-            if not ok then
-              finish(i, nil, { message = "tectonic backend error: " .. tostring(e), backend = "tectonic" })
-              step(i + 1)
+    local function tectonic_argv()
+      local a = { "--untrusted" }
+      if flag_ok then vim.list_extend(a, { "-Z", "continue-on-errors" }) end
+      vim.list_extend(a, { "--keep-logs", "--outdir", tmp, tmp .. "/doc.tex" })
+      return argv("tectonic", unpack(a))
+    end
+    local on_compiled
+    on_compiled = guarded(function(res)
+      if flag_ok and res.code ~= 0 and flag_rejected(res.stderr) then
+        -- plan B: this tectonic does not know the flag: once more without it and without auctex
+        flag_ok = false
+        if not warned then
+          warned = true
+          vim.schedule(
+            function()
+              vim.notify(
+                "inkmath: tectonic rejected -Z continue-on-errors; fallback formulas are centered (no baseline alignment)",
+                vim.log.levels.WARN
+              )
             end
-          end
+          )
         end
-        step = guarded(function(i)
-          if i > #items then return cleanup() end
-          local item = items[i]
-          local png = ("%s/p%d.png"):format(tmp, i)
-          local function bail(msg)
-            finish(i, nil, { message = msg, backend = "tectonic" })
+        vim.fn.writefile(build_doc(items, false), tmp .. "/doc.tex")
+        return run(tectonic_argv(), on_compiled)
+      end
+      local snippets, first_err = parse_log(tmp .. "/doc.log")
+      if res.code ~= 0 or first_err or not vim.uv.fs_stat(tmp .. "/doc.pdf") then
+        local msg = first_err
+        if not msg then
+          local tail = vim.trim(res.stderr or "")
+          msg = tail ~= "" and (tail:match("[^\n]*$")) or "tectonic failed"
+        end
+        cleanup()
+        return fail_all(msg)
+      end
+
+      local step
+      -- per-item guard: a thrown error fails only item i, then continues with the next
+      local function item_guard(i, fn)
+        return function(...)
+          local ok, e = pcall(fn, ...)
+          if not ok then
+            finish(i, nil, { message = "tectonic backend error: " .. tostring(e), backend = "tectonic" })
             step(i + 1)
           end
-          local function identify_and_pad()
-            run(
-              magick("identify", "-format", "%w %h", png),
-              item_guard(i, function(r2)
-                local w, h = (r2.stdout or ""):match("(%d+) (%d+)")
-                if r2.code ~= 0 or not w then return bail("magick identify failed") end
-                local lay = layout(item, tonumber(w), tonumber(h), snippets[i], pps)
-                local out = cache.path(item.key)
-                vim.fn.mkdir(vim.fs.dirname(out), "p")
-                -- write next to the target, then rename (atomic): a reader of `out` (the
-                -- terminal, kitty transmit) never sees a half-written file
-                local tmp_out = ("%s.tmp.%d.%d.png"):format(out:gsub("%.png$", ""), vim.uv.os_getpid(), vim.uv.hrtime())
-                local cmd = magick(png)
-                vim.list_extend(cmd, compact(lay.args))
-                cmd[#cmd + 1] = tmp_out
-                run(
-                  cmd,
-                  item_guard(i, function(r3)
-                    if r3.code ~= 0 then
-                      pcall(os.remove, tmp_out)
-                      return bail("magick pad failed: " .. vim.trim(r3.stderr or ""))
-                    end
-                    local renamed, rerr = os.rename(tmp_out, out)
-                    if not renamed then
-                      pcall(os.remove, tmp_out)
-                      return bail("could not move the image into the cache: " .. tostring(rerr))
-                    end
-                    finish(i, cache.put(item.key, lay.cols, lay.rows, lay.ratio), nil)
-                    step(i + 1)
-                  end)
-                )
-              end)
-            )
-          end
+        end
+      end
+      step = guarded(function(i)
+        if i > #items then return cleanup() end
+        local item = items[i]
+        local png = ("%s/p%d.png"):format(tmp, i)
+        local function bail(msg)
+          finish(i, nil, { message = msg, backend = "tectonic" })
+          step(i + 1)
+        end
+        local function identify_and_pad()
           run(
-            magick("-density", ("%.3f"):format(dpi), "-background", "none", ("%s/doc.pdf[%d]"):format(tmp, i - 1), png),
-            item_guard(i, function(r1)
-              if r1.code ~= 0 then return bail("magick rasterize failed: " .. vim.trim(r1.stderr or "")) end
-              if item.node.kind == "inline" then return identify_and_pad() end
-              -- display/block: trim the page to its content first
+            magick("identify", "-format", "%w %h", png),
+            item_guard(i, function(r2)
+              local w, h = (r2.stdout or ""):match("(%d+) (%d+)")
+              if r2.code ~= 0 or not w then return bail("magick identify failed") end
+              local lay = layout(item, tonumber(w), tonumber(h), snippets[i], pps)
+              local out = cache.path(item.key)
+              vim.fn.mkdir(vim.fs.dirname(out), "p")
+              -- write next to the target, then rename (atomic): a reader of `out` (the
+              -- terminal, kitty transmit) never sees a half-written file
+              local tmp_out = ("%s.tmp.%d.%d.png"):format(out:gsub("%.png$", ""), vim.uv.os_getpid(), vim.uv.hrtime())
+              local cmd = magick(png)
+              vim.list_extend(cmd, compact(lay.args))
+              cmd[#cmd + 1] = tmp_out
               run(
-                magick(png, "-trim", "+repage", png),
-                item_guard(i, function(rt)
-                  if rt.code ~= 0 then return bail("magick trim failed: " .. vim.trim(rt.stderr or "")) end
-                  identify_and_pad()
+                cmd,
+                item_guard(i, function(r3)
+                  if r3.code ~= 0 then
+                    pcall(os.remove, tmp_out)
+                    return bail("magick pad failed: " .. vim.trim(r3.stderr or ""))
+                  end
+                  local renamed, rerr = os.rename(tmp_out, out)
+                  if not renamed then
+                    pcall(os.remove, tmp_out)
+                    return bail("could not move the image into the cache: " .. tostring(rerr))
+                  end
+                  finish(i, cache.put(item.key, lay.cols, lay.rows, lay.ratio), nil)
+                  step(i + 1)
                 end)
               )
             end)
           )
-        end)
-        step(1)
+        end
+        run(
+          magick("-density", ("%.3f"):format(dpi), "-background", "none", ("%s/doc.pdf[%d]"):format(tmp, i - 1), png),
+          item_guard(i, function(r1)
+            if r1.code ~= 0 then return bail("magick rasterize failed: " .. vim.trim(r1.stderr or "")) end
+            if item.node.kind == "inline" then return identify_and_pad() end
+            -- display/block: trim the page to its content first
+            run(
+              magick(png, "-trim", "+repage", png),
+              item_guard(i, function(rt)
+                if rt.code ~= 0 then return bail("magick trim failed: " .. vim.trim(rt.stderr or "")) end
+                identify_and_pad()
+              end)
+            )
+          end)
+        )
       end)
-    )
+      step(1)
+    end)
+    run(tectonic_argv(), on_compiled)
   end)()
 end
 
