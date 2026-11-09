@@ -61,14 +61,15 @@ run() {
   mkdir -p "$d/home/.config" "$d/home/.local/share" "$d/run"
   chmod 700 "$d/run"
   # the command inside gets the caller's XDG dirs back (Neovim finds its parsers there)
-  local -a keep=(env)
+  local -a keep=(env) sets=()
   for v in XDG_CONFIG_HOME XDG_DATA_HOME XDG_RUNTIME_DIR; do
-    if [ -n "${!v+x}" ]; then keep+=("$v=${!v}"); else keep+=(-u "$v"); fi
+    # env takes options (-u) only before the first NAME=VALUE: unsets first
+    if [ -n "${!v+x}" ]; then sets+=("$v=${!v}"); else keep+=(-u "$v"); fi
   done
   # the inner command's exit status lands in <dir>/inner.log (diagnostics: a terminal that ends at once)
   # (127: not found, then also the PATH it saw)
   set -- sh -c '"$@"; rc=$?; echo "inner command exited with $rc" >>"$0"
-    [ "$rc" != 127 ] || echo "PATH inside the terminal: $PATH" >>"$0"' "$d/inner.log" "${keep[@]}" "$@"
+    [ "$rc" != 127 ] || echo "PATH inside the terminal: $PATH" >>"$0"' "$d/inner.log" "${keep[@]}" "${sets[@]}" "$@"
   # the terminal gets nothing from the outer session: no user config, no inherited terminal identity
   export XDG_CONFIG_HOME="$d/home/.config" XDG_DATA_HOME="$d/home/.local/share" XDG_RUNTIME_DIR="$d/run"
   unset TERM_PROGRAM TERM_PROGRAM_VERSION LC_TERMINAL KONSOLE_VERSION WEZTERM_PANE WEZTERM_UNIX_SOCKET \
