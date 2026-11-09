@@ -298,17 +298,34 @@ jobs:
               *) echo "–" ;;
             esac
           }
-          table() { # <sample>...
+          table1() { # <sample>... (columns: the variants in $cols)
             local s v row
             printf '| Sample |'
-            printf ' %s |' "${variants[@]}"
+            printf ' %s |' "${cols[@]}"
             printf '\n|---|'
-            printf -- '---|%.0s' "${variants[@]}"
+            printf -- '---|%.0s' "${cols[@]}"
             printf '\n'
             for s in "$@"; do
               row="| \`$s\` |"
-              for v in "${variants[@]}"; do row+=" $(cell "$s" "$v") |"; done
+              for v in "${cols[@]}"; do row+=" $(cell "$s" "$v") |"; done
               echo "$row"
+            done
+          }
+          # kitty and kitty + tmux in one table, each real terminal group in its own (narrower tables)
+          table() { # <sample>...
+            local -a rest=()
+            local v first=true
+            cols=()
+            for v in "${variants[@]}"; do
+              case "$v" in kitty | kitty-tmux) cols+=("$v") ;; *) rest+=("$v") ;; esac
+            done
+            if [ "${#cols[@]}" -gt 0 ]; then table1 "$@"; first=false; fi
+            while [ "${#rest[@]}" -gt 0 ]; do
+              cols=("${rest[@]:0:2}")
+              rest=("${rest[@]:2}")
+              [ "$first" = true ] || echo
+              first=false
+              table1 "$@"
             done
           }
           changed=()
@@ -323,7 +340,7 @@ jobs:
           done
           {
             echo "<!-- inkmath-shots -->"
-            echo "### 📸 inkmath in kitty and kitty + tmux at \`${short}\`"
+            echo "### 📸 inkmath in kitty, tmux and real terminals at \`${short}\`"
             echo
             if [ "$have_base" = false ]; then
               echo "No baseline from \`main\` yet (the next push to \`main\` creates it): this shows the PR's images only."
