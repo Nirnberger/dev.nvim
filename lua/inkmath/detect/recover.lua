@@ -91,6 +91,7 @@ function M.scan(lines, first_row)
   end
   -- openers that already failed to find a closer: no later one of the same kind can succeed
   local failed = {}
+  local noend = {}
 
   --- Original text from (r1,c1) to (r2,c2), both inclusive, 1-based columns.
   local function slice(r1, c1, r2, c2)
@@ -129,6 +130,7 @@ function M.scan(lines, first_row)
     local pn = vim.pesc(name)
     local b, e = "\\begin%s*{" .. pn .. "}", "\\end%s*{" .. pn .. "}"
     local depth = 1
+    local saw_end = false
     for rr = r, n do
       local line = m[rr]
       local i = rr == r and c or 1
@@ -136,6 +138,7 @@ function M.scan(lines, first_row)
         local bs, be = line:find(b, i)
         local es, ee = line:find(e, i)
         if not bs and not es then break end
+        if es then saw_end = true end
         if bs and (not es or bs < es) then
           depth = depth + 1
           i = be + 1
@@ -146,6 +149,7 @@ function M.scan(lines, first_row)
         end
       end
     end
+    return nil, nil, saw_end
   end
 
   local function emit(kind, r1, c1, r2, c2, src, env)
@@ -170,9 +174,12 @@ function M.scan(lines, first_row)
         if name then
           local base = name:gsub("%*$", "")
           local er, ec
-          if MATH_ENVS[base] and not failed["env:" .. name] then
-            er, ec = find_env_end(r, after, name)
-            if not er then failed["env:" .. name] = true end
+          -- only "no \end{name} anywhere after this point" is memoized (depth failures are not)
+          local ne = noend[name]
+          if MATH_ENVS[base] and not (ne and (r > ne[1] or (r == ne[1] and c >= ne[2]))) then
+            local saw
+            er, ec, saw = find_env_end(r, after, name)
+            if not er and not saw then noend[name] = { r, c } end
           end
           if er then
             emit("block", r, c, er, ec, slice(r, c, er, ec), base)

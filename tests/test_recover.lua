@@ -81,6 +81,18 @@ T["unmatched paren and bracket"] = function()
 end
 T["lstlisting is ignored"] = function() eq(#scan({ "\\begin{lstlisting}", "$x$", "\\end{lstlisting}" }), 0) end
 T["space between begin and brace"] = function() eq(#scan({ "\\begin {align}", "x", "\\end {align}" }), 1) end
+T["stray begin before nested same-name env"] = function()
+  local n = scan({ "\\begin{align}", "\\begin{align}", "x", "\\end{align}" })
+  eq(#n, 1)
+  eq(n[1].range.srow, 1)
+  eq(n[1].range.erow, 3)
+end
+T["stray begin before balanced env"] = function()
+  local n = scan({ "\\begin{align} oops", "text", "", "\\begin{align}", "a", "\\end{align}" })
+  eq(#n, 1)
+  eq(n[1].range.srow, 3)
+  eq(n[1].range.erow, 5)
+end
 T["pathological inputs stay fast"] = function()
   local h = require("tests.helpers")
   local function rep(s)
