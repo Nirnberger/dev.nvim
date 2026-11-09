@@ -147,4 +147,78 @@ T["row-bounded detect still works on a broken tree"] = function()
   eq(info.tree_error, true)
 end
 
+T["starred environment: same id and env in a broken paragraph"] = function()
+  for _, env in ipairs({ "align*", "equation*", "multline*" }) do
+    local body = { "\\begin{" .. env .. "}", "a&=b \\\\", "c", "\\end{" .. env .. "}" }
+    local clean = d(body)
+    local broken_lines = vim.list_extend(vim.deepcopy(body), { "x \\frac{ oops" })
+    local broken = d(broken_lines)
+    eq(#broken, 1)
+    eq(broken[1].env, clean[1].env)
+    eq(broken[1].id, clean[1].id)
+  end
+end
+
+T["verbatim with a blank line is not math in a broken paragraph"] = function()
+  local n = d({ "\\begin{lstlisting}", "a", "", "$notmath$", "\\end{lstlisting}", "\\frac{" })
+  eq(srcs(n), {})
+end
+
+local DOC = {
+  "\\begin{document}",
+  "Text $a+$b$ and $c$ here.",
+  "",
+  "Para two $d$ and \\(e\\).",
+  "More $f$.",
+  "}",
+  "\\[ x^2 \\]",
+  "",
+  "\\begin{align}",
+  "  a &= b",
+  "\\end{align}",
+  "",
+  "Last $z$ $and $$w$$.",
+  "x $g$ y",
+  "\\end{document}",
+}
+
+local function key(n) return vim.inspect({ n.kind, n.src, n.env, n.id, n.range }) end
+
+local function parity(lines, bounds)
+  local b = h.buf(lines, "tex")
+  local full = detect.detect(b)
+  for _, rg in ipairs(bounds) do
+    local want =
+      vim.tbl_map(key, vim.tbl_filter(function(n) return n.range.srow <= rg[2] and n.range.erow >= rg[1] end, full))
+    local got = vim.tbl_map(key, (detect.detect(b, rg[1], rg[2])))
+    eq(got, want)
+  end
+end
+
+T["range detect equals the filtered full detect (mis-paired node above the range)"] = function()
+  parity(DOC, { { 13, 13 } })
+end
+
+T["range detect parity on random broken buffers"] = function()
+  local pieces =
+    { "$a$", "$", "$$", "\\(", "\\)", "\\[", "\\]", "{", "}", "x", "\\frac{", "\\begin{align}", "\\end{align}", "" }
+  math.randomseed(7)
+  for _ = 1, 25 do
+    local lines = {}
+    for i = 1, 14 do
+      local t = {}
+      for _ = 1, math.random(0, 3) do
+        t[#t + 1] = pieces[math.random(#pieces)]
+      end
+      lines[i] = table.concat(t, " ")
+    end
+    local bounds = {}
+    for _ = 1, 4 do
+      local a = math.random(0, 13)
+      bounds[#bounds + 1] = { a, math.min(13, a + math.random(0, 2)) }
+    end
+    parity(lines, bounds)
+  end
+end
+
 return T

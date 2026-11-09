@@ -505,7 +505,8 @@ end
 ---@param buf integer
 ---@param want? {[1]: integer, [2]: integer}[]
 ---@return inkmath.MathNode[] nodes
----@return {has_error: boolean, pending?: true} info pending: waiting for a parse
+---@return {has_error: boolean, tree_error: boolean, pending?: true} info has_error: unrecovered errors (freeze);
+--- tree_error: the tree has errors (no incremental work); pending: waiting for a parse
 ---@return {[1]: integer, [2]: integer}[] stale
 function M.detect(buf, want)
   local lang = lang_of(buf)

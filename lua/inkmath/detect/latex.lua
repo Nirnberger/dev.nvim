@@ -105,6 +105,16 @@ end
 
 --- Replace treesitter nodes in the error regions by the tolerant scanner's. Returns the new
 --- list, or nil on failure (the caller keeps the old behaviour).
+local function in_skip(tree, rg)
+  local node = tree:root():descendant_for_range(rg.srow, rg.scol, rg.srow, rg.scol)
+  while node do
+    local t = node:type()
+    if SKIP[t] or t:find("verb", 1, true) then return true end
+    node = node:parent()
+  end
+  return false
+end
+
 local function recover(bufnr, tree, out, lo, hi)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local rows = error_rows(tree:root())
@@ -130,13 +140,13 @@ local function recover(bufnr, tree, out, lo, hi)
         break
       end
     end
-    if not hit then kept[#kept + 1] = n end
+    if not hit and n.range.srow <= hi and n.range.erow >= lo then kept[#kept + 1] = n end
   end
   local recover_mod = require("inkmath.detect.recover")
   for _, r in ipairs(regions) do
     if r[1] <= hi and r[2] >= lo then
       for _, n in ipairs(recover_mod.scan(vim.list_slice(lines, r[1] + 1, r[2] + 1), r[1])) do
-        if n.range.srow <= hi and n.range.erow >= lo then
+        if n.range.srow <= hi and n.range.erow >= lo and not in_skip(tree, n.range) then
           n.id = node_id(n.kind, n.env, n.src)
           kept[#kept + 1] = n
         end
@@ -146,19 +156,11 @@ local function recover(bufnr, tree, out, lo, hi)
   return kept
 end
 
---- @param srow? integer first row (inclusive) to look at; default: whole buffer
---- @param erow? integer last row (inclusive)
---- @return inkmath.MathNode[] nodes, boolean has_error, boolean recovered
---- has_error: the tree has syntax errors; recovered: the error regions were re-scanned
-function M.detect(bufnr, srow, erow)
-  local ok, parser = pcall(vim.treesitter.get_parser, bufnr, "latex", { error = false })
-  if not ok or not parser then return {}, false, false end
-  local tree = parser:parse()[1]
-  if not tree then return {}, false, false end
+--- Treesitter math nodes overlapping rows lo..hi (of the whole tree, outermost only).
+local function collect(bufnr, tree, lo, hi)
   local q = get_query()
-  local lo, hi = srow or 0, erow or math.huge
   local out = {}
-  for id, node in q:iter_captures(tree:root(), bufnr, srow or 0, erow and erow + 1 or -1) do
+  for id, node in q:iter_captures(tree:root(), bufnr, lo, hi == math.huge and -1 or hi + 1) do
     local kind = q.captures[id]
     local sr, sc, er, ec = node:range()
     if
@@ -189,8 +191,26 @@ function M.detect(bufnr, srow, erow)
       }
     end
   end
+  return out
+end
+
+--- @param srow? integer first row (inclusive) to look at; default: whole buffer
+--- @param erow? integer last row (inclusive)
+--- @return inkmath.MathNode[] nodes, boolean has_error, boolean recovered
+--- has_error: the tree has syntax errors; recovered: the error regions were re-scanned
+function M.detect(bufnr, srow, erow)
+  local ok, parser = pcall(vim.treesitter.get_parser, bufnr, "latex", { error = false })
+  if not ok or not parser then return {}, false, false end
+  local tree = parser:parse()[1]
+  if not tree then return {}, false, false end
+  local lo, hi = srow or 0, erow or math.huge
+  local out = collect(bufnr, tree, lo, hi)
   if not tree:root():has_error() then return out, false, false end
-  local rok, res = pcall(recover, bufnr, tree, out, lo, hi)
+  -- the error region is computed on the whole tree, so a range detect equals the full one
+  local rok, res = pcall(function()
+    local all = (lo == 0 and hi == math.huge) and out or collect(bufnr, tree, 0, math.huge)
+    return recover(bufnr, tree, all, lo, hi)
+  end)
   if rok and res then return res, true, true end
   return out, true, false
 end

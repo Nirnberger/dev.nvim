@@ -111,4 +111,9 @@ T["pathological inputs stay fast"] = function()
   eq(ms < 1000 * h.perf_factor, true)
 end
 
+T["starred environment keeps the star in env"] = function()
+  local n = scan({ "\\begin{align*}", "a", "\\end{align*}" })
+  eq(n[1].env, "align*")
+end
+
 return T

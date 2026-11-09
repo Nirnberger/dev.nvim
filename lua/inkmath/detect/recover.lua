@@ -182,7 +182,7 @@ function M.scan(lines, first_row)
             if not er and not saw then noend[name] = { r, c } end
           end
           if er then
-            emit("block", r, c, er, ec, slice(r, c, er, ec), base)
+            emit("block", r, c, er, ec, slice(r, c, er, ec), name)
             r, c = er, ec + 1
           else
             c = after
