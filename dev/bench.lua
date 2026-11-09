@@ -1,6 +1,6 @@
 -- Headless benchmark of the inkmath pipeline (real MathJax worker, kitty.send stubbed).
 -- Run: make bench   (NVIM_APPNAME=inkmath-dev, never the default config/data dirs)
--- Env: BENCH_ONLY=worker,tex1000,tex5000,md2000,md2000nohl,scroll,warmup  (comma list; default all)
+-- Env: BENCH_ONLY=worker,tex1000,tex5000,md2000,md2000nohl,opendollar,scroll,warmup  (comma list; default all)
 --      BENCH_WORKERS=n  pool size for the open/scroll benchmarks; BENCH_PROFILE=1  time refresh parts
 --      BENCH_JSON=path  also write the results as JSON
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
@@ -493,6 +493,33 @@ local function bench_open(name, lines, ft)
   return buf
 end
 
+--- (c2) detection with an open `$` in the middle of a large document: tree errors are
+--- re-scanned per paragraph by detect/recover.lua
+local function bench_opendollar(lines)
+  local buf = new_buf(lines, "tex")
+  local function run(label)
+    local tt = {}
+    for _ = 1, 20 do
+      vim.api.nvim_buf_set_text(buf, 0, 0, 0, 0, { "" }) -- dirty the tree like an edit
+      local t = now()
+      detect.detect(buf)
+      tt[#tt + 1] = now() - t
+    end
+    record("tex 1000: full detect " .. label .. " median (ms)", stats(tt).median)
+  end
+  run("clean")
+  local row = 500
+  while not lines[row]:match("^Text") do
+    row = row + 1
+  end
+  local l = lines[row]
+  vim.api.nvim_buf_set_text(buf, row - 1, 0, row - 1, 0, { "an open $ " })
+  run("with an open $")
+  vim.api.nvim_buf_set_text(buf, row - 1, 0, row - 1, #"an open $ ", { "" })
+  assert(vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] == l)
+  vim.api.nvim_buf_delete(buf, { force = true })
+end
+
 --- (d) scrolling in a large document
 local function bench_scroll(lines)
   config.setup({ fill = { enabled = false } }) -- comparable with v1: no background renders
@@ -651,6 +678,7 @@ local ok, err = xpcall(function()
     core.detach(b)
     NOHL = false
   end
+  if want("opendollar") then bench_opendollar(gen_tex(1000)) end
   if want("scroll") then bench_scroll(gen_tex(5000)) end
   if want("warmup") then bench_warmup(gen_tex(1000)) end
 end, debug.traceback)

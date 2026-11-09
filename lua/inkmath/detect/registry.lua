@@ -4,7 +4,7 @@ local M = {}
 
 ---@class inkmath.FiletypeSpec
 ---@field lang string treesitter language the detector parses
----@field detector string module with detect(buf, srow?, erow?) -> nodes, has_error
+---@field detector string module with detect(buf, srow?, erow?) -> nodes, has_error, recovered? (has_error: parse tree has errors)
 ---@field ctx? "tex"|"markdown"|fun(buf: integer): {macros?: table, preamble?: string[]}
 
 local specs = {} ---@type table<string, inkmath.FiletypeSpec>

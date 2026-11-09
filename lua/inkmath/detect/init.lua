@@ -44,25 +44,40 @@ end
 ---@param srow? integer inclusive
 ---@param erow? integer inclusive
 ---@return inkmath.MathNode[] nodes
----@return {has_error: boolean} info has_error: the parse tree has syntax errors
+---@return {has_error: boolean, tree_error: boolean} info tree_error: the parse tree has syntax errors;
+--- has_error: ... and they could not be recovered from (results are unreliable)
 function M.detect(bufnr, srow, erow)
   local spec = registry.of(bufnr)
   local modname = spec and spec.detector -- a missing module yields no nodes
-  if not modname then return {}, { has_error = false } end
+  if not modname then return {}, { has_error = false, tree_error = false } end
   local ok, mod = pcall(require, modname)
   if not ok then
     if type(mod) == "string" and mod:find("module '" .. modname .. "' not found", 1, true) then
-      return {}, { has_error = false }
+      return {}, { has_error = false, tree_error = false }
     end
     error(mod)
   end
-  local nodes, has_error = mod.detect(bufnr, srow, erow)
+  local nodes, has_error, recovered = mod.detect(bufnr, srow, erow)
   if srow or erow then
     local lo, hi = srow or 0, erow or math.huge
     nodes = vim.tbl_filter(function(n) return n.range.srow <= hi and n.range.erow >= lo end, nodes)
   end
   table.sort(nodes, M.before)
-  return nodes, { has_error = has_error == true }
+  local tree_error = has_error == true
+  return nodes, { has_error = tree_error and recovered ~= true, tree_error = tree_error }
+end
+
+--- Live preview only, after detect() found no node at the cursor on a broken tree: the
+--- formula being typed whose closer is missing (detectors with an `open_at`; else nil).
+---@param bufnr integer
+---@param row integer 0-based
+---@param col integer 0-based byte column
+---@return inkmath.MathNode|nil
+function M.open_at(bufnr, row, col)
+  local spec = registry.of(bufnr)
+  local ok, mod = pcall(require, spec and spec.detector or "")
+  if not (ok and type(mod) == "table" and mod.open_at) then return nil end
+  return mod.open_at(bufnr, row, col)
 end
 
 return M

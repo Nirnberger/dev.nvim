@@ -105,4 +105,147 @@ T["row-bounded detect matches the full result"] = function()
   eq(n[1].src, "c")
 end
 
+local function srcs(n)
+  return vim.tbl_map(function(x) return x.src end, n)
+end
+
+T["recovers formulas around an unclosed dollar"] = function()
+  local n, info = detect.detect(h.buf({ "$a$ $b$ $c", "", "$y$", "", "\\[z\\]" }, "tex"))
+  eq(srcs(n), { "a", "b", "y", "z" })
+  eq(info.has_error, false)
+  eq(info.tree_error, true)
+end
+
+T["recovery keeps later paragraphs after a broken command"] = function()
+  local n = d({ "$\\frac{$ a", "", "$y$" })
+  assert(vim.tbl_contains(srcs(n), "y"))
+end
+
+T["error-free text has no tree_error"] = function()
+  local n, info = detect.detect(h.buf({ "$a$ and $b$" }, "tex"))
+  eq(#n, 2)
+  eq(info.tree_error, false)
+  eq(info.has_error, false)
+end
+
+T["recovered nodes have the same ids as in clean text"] = function()
+  local clean = d({ "$y$", "", "\\begin{align}", "a&=b", "\\end{align}" })
+  local broken = d({ "$x", "", "$y$", "", "\\begin{align}", "a&=b", "\\end{align}" })
+  local ids = {}
+  for _, x in ipairs(broken) do
+    ids[x.src] = x.id
+  end
+  for _, x in ipairs(clean) do
+    eq(ids[x.src], x.id)
+  end
+end
+
+T["row-bounded detect still works on a broken tree"] = function()
+  local b = h.buf({ "$a$ $b$ $c", "", "$y$", "", "$z$" }, "tex")
+  local n, info = detect.detect(b, 4, 4)
+  eq(srcs(n), { "z" })
+  eq(info.tree_error, true)
+end
+
+T["starred environment: same id and env in a broken paragraph"] = function()
+  for _, env in ipairs({ "align*", "equation*", "multline*" }) do
+    local body = { "\\begin{" .. env .. "}", "a&=b \\\\", "c", "\\end{" .. env .. "}" }
+    local clean = d(body)
+    local broken_lines = vim.list_extend(vim.deepcopy(body), { "x \\frac{ oops" })
+    local broken = d(broken_lines)
+    eq(#broken, 1)
+    eq(broken[1].env, clean[1].env)
+    eq(broken[1].id, clean[1].id)
+  end
+end
+
+T["verbatim with a blank line is not math in a broken paragraph"] = function()
+  local n = d({ "\\begin{lstlisting}", "a", "", "$notmath$", "\\end{lstlisting}", "\\frac{" })
+  eq(srcs(n), {})
+end
+
+local DOC = {
+  "\\begin{document}",
+  "Text $a+$b$ and $c$ here.",
+  "",
+  "Para two $d$ and \\(e\\).",
+  "More $f$.",
+  "}",
+  "\\[ x^2 \\]",
+  "",
+  "\\begin{align}",
+  "  a &= b",
+  "\\end{align}",
+  "",
+  "Last $z$ $and $$w$$.",
+  "x $g$ y",
+  "\\end{document}",
+}
+
+local function key(n) return vim.inspect({ n.kind, n.src, n.env, n.id, n.range }) end
+
+local function parity(lines, bounds)
+  local b = h.buf(lines, "tex")
+  local full = detect.detect(b)
+  for _, rg in ipairs(bounds) do
+    local want =
+      vim.tbl_map(key, vim.tbl_filter(function(n) return n.range.srow <= rg[2] and n.range.erow >= rg[1] end, full))
+    local got = vim.tbl_map(key, (detect.detect(b, rg[1], rg[2])))
+    eq(got, want)
+  end
+end
+
+T["range detect equals the filtered full detect (mis-paired node above the range)"] = function()
+  parity(DOC, { { 13, 13 } })
+end
+
+T["broken tree: the full result is memoized per changedtick"] = function()
+  local rec = require("inkmath.detect.recover")
+  local orig, calls = rec.scan, 0
+  rec.scan = function(...)
+    calls = calls + 1
+    return orig(...)
+  end
+  local ok, err = pcall(function()
+    local b = h.buf({ "$a$ $b$ $c", "", "$y$", "", "$z$" }, "tex")
+    local full = detect.detect(b)
+    eq(calls > 0, true)
+    calls = 0
+    eq(srcs((detect.detect(b, 4, 4))), { "z" })
+    eq(srcs((detect.detect(b, 2, 2))), { "y" })
+    -- callers may mutate the nodes (numbering): the memo hands out copies
+    full[1].id = full[1].id .. "#1"
+    eq(vim.tbl_map(key, (detect.detect(b))), vim.tbl_map(key, (detect.detect(b))))
+    eq(detect.detect(b)[1].id:find("#", 1, true), nil)
+    eq(calls, 0)
+    vim.api.nvim_buf_set_lines(b, 4, 5, false, { "$w$" })
+    eq(srcs((detect.detect(b, 4, 4))), { "w" })
+    eq(calls > 0, true)
+  end)
+  rec.scan = orig
+  if not ok then error(err, 0) end
+end
+
+T["range detect parity on random broken buffers"] = function()
+  local pieces =
+    { "$a$", "$", "$$", "\\(", "\\)", "\\[", "\\]", "{", "}", "x", "\\frac{", "\\begin{align}", "\\end{align}", "" }
+  math.randomseed(7)
+  for _ = 1, 25 do
+    local lines = {}
+    for i = 1, 14 do
+      local t = {}
+      for _ = 1, math.random(0, 3) do
+        t[#t + 1] = pieces[math.random(#pieces)]
+      end
+      lines[i] = table.concat(t, " ")
+    end
+    local bounds = {}
+    for _ = 1, 4 do
+      local a = math.random(0, 13)
+      bounds[#bounds + 1] = { a, math.min(13, a + math.random(0, 2)) }
+    end
+    parity(lines, bounds)
+  end
+end
+
 return T

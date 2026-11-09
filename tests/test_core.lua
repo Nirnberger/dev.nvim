@@ -332,15 +332,50 @@ end
 
 T["cases"]["lone dollar keeps formulas below"] = function()
   local buf = doc_buf()
-  local before = rows_below(buf, 10)
-  edit_refresh(buf, 10, 7, "$")
+  local before = rows_below(buf, 8)
+  vim.api.nvim_buf_set_lines(buf, 9, 9, false, { "a lone $ here", "" }) -- own paragraph
+  core.refresh(buf)
+  vim.wait(200)
   eq(rows_below(buf, 10), before)
+end
+
+T["cases"]["open dollar keeps other formulas"] = function()
+  local buf = doc_buf()
+  vim.api.nvim_buf_set_lines(buf, 9, 9, false, { "a lone $ here" })
+  core.refresh(buf)
+  vim.wait(200)
+  local before = rows_below(buf, 9)
+  assert(before > 0)
+  -- a newly typed formula below renders
+  local nodes = vim.tbl_count(state.get(buf).nodes)
+  vim.api.nvim_buf_set_lines(buf, 12, 12, false, { "new $zq + 1$ here" })
+  core.refresh(buf)
+  vim.wait(15000, function() return vim.tbl_count(state.get(buf).nodes) > nodes end, 20)
+  eq(vim.tbl_count(state.get(buf).nodes) > nodes, true)
+  vim.wait(15000, function() return rows_below(buf, 9) > before end, 20)
+  local with_new = rows_below(buf, 9)
+  eq(with_new > before, true)
+  -- closing the `$` (edit the line) leaves no duplicate or stale marks
+  vim.api.nvim_buf_set_lines(buf, 9, 10, false, { "a lone $x$ here" })
+  core.refresh(buf)
+  vim.wait(15000, function() return rows_below(buf, 8) == with_new + 1 end, 20)
+  eq(rows_below(buf, 8), with_new + 1) -- only the freshly closed `$x$` (row 9) is added
+end
+
+--- the scanner failing is the one error left unrecovered: core freezes then
+local function with_failing_scanner(f)
+  local rec = require("inkmath.detect.recover")
+  local orig = rec.scan
+  rec.scan = function() error("boom") end
+  local ok, err = pcall(f)
+  rec.scan = orig
+  assert(ok, err)
 end
 
 T["cases"]["closing the brace resumes refresh"] = function()
   local buf = doc_buf()
   local before = rows_below(buf, 10)
-  edit_refresh(buf, 10, 22, "\\frac{")
+  with_failing_scanner(function() edit_refresh(buf, 10, 22, "\\frac{") end) -- frozen
   edit_refresh(buf, 10, 28, "a}{b}")
   local function has_frac()
     for _, e in pairs(state.get(buf).nodes) do
@@ -357,20 +392,22 @@ T["cases"]["closing the brace resumes refresh"] = function()
 end
 
 T["cases"]["cursor reveal works while frozen"] = function()
-  local buf = doc_buf()
-  local function at(row)
-    return vim.tbl_filter(function(m) return m[2] == row end, inline_marks(buf))
-  end
-  eq(#at(38), 1) -- `$\$5 + x$`
-  vim.api.nvim_buf_set_lines(buf, 9, 9, false, { "a lone $ here" }) -- everything shifts down
-  core.refresh(buf)
-  eq(#at(39), 1)
-  vim.api.nvim_win_set_cursor(0, { 40, 37 })
-  vim.cmd("doautocmd CursorMoved")
-  eq(#at(39), 0) -- revealed at its moved position
-  vim.api.nvim_win_set_cursor(0, { 1, 0 })
-  vim.cmd("doautocmd CursorMoved")
-  eq(#at(39), 1) -- restored there
+  with_failing_scanner(function()
+    local buf = doc_buf()
+    local function at(row)
+      return vim.tbl_filter(function(m) return m[2] == row end, inline_marks(buf))
+    end
+    eq(#at(38), 1) -- `$\$5 + x$`
+    vim.api.nvim_buf_set_lines(buf, 9, 9, false, { "a lone $ here" }) -- everything shifts down
+    core.refresh(buf)
+    eq(#at(39), 1)
+    vim.api.nvim_win_set_cursor(0, { 40, 37 })
+    vim.cmd("doautocmd CursorMoved")
+    eq(#at(39), 0) -- revealed at its moved position
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    vim.cmd("doautocmd CursorMoved")
+    eq(#at(39), 1) -- restored there
+  end)
 end
 
 T["cases"]["buffer broken since attach still refreshes"] = function()
@@ -947,6 +984,38 @@ T["cases"]["folds: inline images on a folded line are not drawn"] = function()
   vim.wait(200)
   eq(row_has_image(1), false) -- default foldtext: fold line shows no virt_text
   eq(srow(3), 2)
+end
+
+-- a formula being typed before its closer: the tree is broken and refresh leaves it as source,
+-- but the live preview shows it (the unpaired opener before the cursor, to the paragraph end)
+T["cases"]["preview shows a formula whose closer is not typed yet"] = function()
+  local mathjax = require("inkmath.render.mathjax")
+  local cursor = require("inkmath.view.cursor")
+  orig.mode, orig.start, orig.preview = core._mode, mathjax.start, cursor.preview
+  core._mode = function() return "i" end
+  mathjax.start = function() return true end
+  local got = {}
+  cursor.preview = function(_, _, node) got[#got + 1] = node.src end
+  -- text after the cursor: normal mode (the test's real mode) clamps the cursor to the last char
+  for _, case in ipairs({
+    { { "Some text $x^2 more" }, { 1, 14 } },
+    { { "Some text \\(x^2 more" }, { 1, 15 } },
+    { { "Intro $a$ text.", "", "Some text $x^2 more", "", "Later $b$ more." }, { 3, 14 } },
+    { { "\\documentclass{article}", "\\begin{document}", "Some text $x^2 more", "\\end{document}" }, { 3, 14 } },
+    { { "\\begin{itemize}", "\\item Some $x^2 and more", "\\item next", "\\end{itemize}" }, { 2, 15 } },
+  }) do
+    local buf = setup_buf(case[1], "tex")
+    core.attach(buf, { sync = true })
+    vim.api.nvim_win_set_cursor(0, case[2])
+    got = {}
+    vim.cmd("doautocmd CursorMovedI")
+    vim.wait(300, function() return #got > 0 end, 10)
+    eq(got, { "x^2" })
+    -- refresh never places the open formula
+    for id in pairs(state.get(buf).nodes) do
+      eq(id:find(require("inkmath.detect").node_id("inline", nil, "x^2"), 1, true), nil)
+    end
+  end
 end
 
 T["cases"]["M4: no live preview while images are hidden"] = function()

@@ -72,4 +72,9 @@ T["missing parser yields no nodes"] = function()
   eq(n, {})
 end
 
+T["lone dollar: tree_error mirrors has_error"] = function()
+  local _, info = detect.detect(h.buf({ "price $5 and more" }, "markdown"))
+  eq(info.tree_error, info.has_error)
+end
+
 return T

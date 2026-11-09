@@ -113,6 +113,19 @@ T["samples"]["multiline.md renders and ignores code"] = function()
   end
 end
 
+T["samples"]["open-dollar.tex renders around the unclosed dollar"] = function()
+  local buf, lines = open("open-dollar.tex", "tex")
+  attach_and_wait(buf, 6)
+  eq(errors, {})
+  local open_row, before, after = find_row(lines, "unclosed $"), false, false
+  for _, m in ipairs(marks(buf)) do
+    eq(m[2] ~= open_row, true)
+    before = before or m[2] < open_row
+    after = after or m[2] > open_row
+  end
+  eq({ before, after }, { true, true })
+end
+
 T["samples"]["broken.tex yields diagnostics"] = function()
   local buf = open("broken.tex", "tex")
   eq(core.attach(buf, { sync = true }), true)
