@@ -16,23 +16,39 @@ Treesitter results stay the source of truth outside the error region. Inside it 
 line scanner recovers the formulas, paragraph by paragraph.
 
 ### Components
-- `lua/inkmath/detect/recover.lua`: pure function `scan(lines, first_row, last_row) -> MathNode[]`.
-  No Neovim API calls except through the lines passed in. Output nodes have the same shape and
-  `node_id` as `detect/latex.lua`.
+- `lua/inkmath/detect/recover.lua`: pure function `scan(lines, first_row) -> MathNode[]` (`lines[1]`
+  is buffer row `first_row`; the caller passes exactly the rows to scan). No Neovim API calls
+  except through the lines passed in. Output nodes have the same shape as `detect/latex.lua`'s
+  (without `id`; latex.lua adds the same `node_id`).
 - `lua/inkmath/detect/latex.lua`: when `tree:root():has_error()`, compute the error region
-  (ERROR/MISSING nodes, extended to the end of their paragraph), call `recover.scan` on it, drop
-  treesitter nodes that overlap the region, merge, and sort by position. `has_error` is returned
-  `false` when the scanner covered the region (so `core.lua` does not freeze). The scanner is
-  wrapped in `pcall`; on failure the old behaviour (`has_error = true`) applies.
+  (ERROR/MISSING nodes, and inline/display nodes spanning a blank line, each extended to its
+  paragraph), call `recover.scan` on it, drop treesitter nodes that overlap the region and merge.
+  It returns `has_error = true, recovered = true`; `detect/init.lua` turns that into
+  `info = {has_error = false, tree_error = true}`, so `core.lua` does not freeze. `recover` runs
+  in `pcall`; on failure `recovered = false` and the old behaviour (`has_error = true`, freeze)
+  applies.
+- The region is computed on the whole tree, so a range detect on a broken tree needs the full
+  result. latex.lua memoizes it per buffer and `changedtick` (dropped on a tick change, on
+  detach and for invalid buffers) and serves range calls by filtering copies of it; the refresh
+  and the preview at the same tick share one scan.
 - `detect/incr.lua` keeps treating a tree with errors as "detect fully" (no incremental work on
   broken trees).
+- Live preview (insert mode): an unpaired opener stays source for refresh/placement, but the
+  formula being typed must still preview. When the tree has errors and no detected node
+  contains the cursor, `core.lua` asks `detect.open_at(buf, row, col)` (latex.lua ->
+  pure `recover.open_at(lines, first_row, row, col)`): the last unpaired `$`, `$$`, `\(` or `\[`
+  at/before the cursor in the cursor's paragraph, as a node from the opener to the paragraph end
+  (`$`/`\(` inline, `$$`/`\[` display; nil for an empty body or inside a comment/verbatim). Used
+  only by the preview, never by refresh. An open `\begin` gets no preview (as before).
 
 ### Scanner rules
 - Boundaries: `$`, `\(`, `\[` end at the paragraph (blank line) at the latest; `\begin{x}` ends at
   the matching `\end{x}` or the end of the file.
-- Pairing order per paragraph: `$$` first, then `$`. A `$` preceded by an odd number of
-  backslashes is escaped. With an odd count of `$`, the last unpaired one is the open one and
-  stays source.
+- Pairing is one left-to-right pass: at each opener (`$$` before `$` at the same position) the
+  first closer of the same kind in the paragraph closes it, and scanning continues after the
+  closer. An opener without a closer stays source and the scan moves on past it. A backslash
+  consumes the next character, so `\$` (a `$` after an odd number of backslashes) is escaped.
+  With an odd count of `$`, the last unpaired one is the open one and stays source.
 - `\begin{x}` without `\end{x}`: not rendered.
 - Ignored: `%` comments to end of line, `verbatim`/`lstlisting`, `\verb`.
 - Unbalanced `{` inside a formula is MathJax's problem (error diagnostic as today); outside math

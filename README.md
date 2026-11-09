@@ -219,10 +219,10 @@ In tmux (`--tmux`), repeat 1-12 and also:
   the document. The paragraphs (blank-line separated) around the error are re-scanned
   by a tolerant text scanner for `$..$`, `$$..$$`, `\(..\)`, `\[..\]` and math
   environments, so formulas elsewhere keep rendering and updating. What stays source:
-  a `\begin` without its `\end`, and the last unpaired `$` of a paragraph. Only if
+  a `\begin` without its `\end`, and the last unpaired `$` of a paragraph (the
+  insert-mode preview still shows a formula whose closer is not typed yet). Only if
   the scanner itself fails (it should not) are the images already shown kept and
-  nothing new rendered or cleared until the parse is clean again. A file that has had
-  errors since it was opened is refreshed as is in that case.
+  nothing new rendered or cleared until the parse is clean again.
 - Closed folds: Neovim does not draw virt_lines or concealed lines inside a closed
   fold, but it does draw a display image's first row over the fold line when the
   block starts the fold. So display images whose first line is inside a closed fold

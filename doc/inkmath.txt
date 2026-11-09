@@ -644,7 +644,8 @@ range in use (`image_ids`).
 - An unclosed `$` or `{` breaks the parse of a LaTeX document; the paragraphs
   around the error are re-scanned (`$`, `$$`, `\(`, `\[`, math environments), so
   other formulas keep rendering. A `\begin` without `\end` and the last unpaired
-  `$` of a paragraph stay source. Only if that scan fails do the images already
+  `$` of a paragraph stay source (the insert-mode preview still shows a formula
+  whose closer is not typed yet). Only if that scan fails do the images already
   shown stay as they are and nothing new renders until the parse is clean again.
 - Display images whose first line is in a closed fold are not placed.
 - Typst, org and terminals other than Ghostty/kitty are not supported.
