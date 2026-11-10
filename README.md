@@ -7,6 +7,9 @@ baseline, display math is centered, and the formula under the cursor shows its
 source with a live preview float while you type. The float goes where blank lines hold it
 (above or below the formula, `preview.position` first), so it covers no text; with too few
 blank lines `preview.position` decides (`preview.avoid_text = false` always uses it).
+In a terminal without a graphics protocol (Alacritty, the VS Code terminal) the float shows the
+formula as Unicode text (`α`, `x²`, `a/b`, `√x`) instead of an image; `preview.text_fallback = false`
+turns that off.
 
 ## Requirements
 

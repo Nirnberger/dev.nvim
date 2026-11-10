@@ -38,6 +38,7 @@ local skipped = {} ---@type table<integer, table> range of the node refresh skip
 local parsed_clean = {} ---@type table<integer, true> a detect since attach was usable: no parse errors, or all recovered (not has_error)
 local folded = {} ---@type table<integer, table<string, integer>> node id -> row, not placed: in a closed fold
 local cleared_conceal = {} ---@type table<integer, true> vimtex math conceal cleared (reload on detach)
+local text_only = {} ---@type table<integer, true> attached for the text preview only (no graphics protocol)
 local globals_done = false
 local last_top = {} ---@type table<string, integer> "win:buf" -> topline (0-based) at the last refresh
 local last_dir = {} ---@type table<string, integer> "win:buf" -> last scroll direction (1 down, -1 up)
@@ -506,7 +507,7 @@ end
 function on_cursor(buf)
   local win = vim.api.nvim_get_current_win()
   if vim.api.nvim_win_get_buf(win) ~= buf then return end
-  cursor.update(buf, win)
+  if not text_only[buf] then cursor.update(buf, win) end
   local sk = skipped[buf]
   if sk then
     local pos = vim.api.nvim_win_get_cursor(win)
@@ -518,14 +519,14 @@ function on_cursor(buf)
   local cfg = config.get(buf)
   if conceal.is_hidden(buf) or not (cfg.preview.enabled and insert_mode()) then return cursor.close_preview(buf) end
   debounce(buf, "preview", cfg.preview.debounce_ms, function()
-    if not (attached[buf] and vim.api.nvim_win_is_valid(win) and insert_mode()) then return end
+    if not ((attached[buf] or text_only[buf]) and vim.api.nvim_win_is_valid(win) and insert_mode()) then return end
     if conceal.is_hidden(buf) then return cursor.close_preview(buf) end
     -- spec §8: no MathJax (node or worker deps missing, or crashed for good) -> no preview
-    if not mathjax.start() then return cursor.close_preview(buf) end
+    if not text_only[buf] and not mathjax.start() then return cursor.close_preview(buf) end
     local pos = vim.api.nvim_win_get_cursor(win)
     local row, col = pos[1] - 1, pos[2]
     after_parse(buf, row, function()
-      if not (attached[buf] and vim.api.nvim_win_is_valid(win) and insert_mode()) then return end
+      if not ((attached[buf] or text_only[buf]) and vim.api.nvim_win_is_valid(win) and insert_mode()) then return end
       if conceal.is_hidden(buf) then return cursor.close_preview(buf) end
       local nodes, info = detect.detect(buf, row, row)
       local hit
@@ -542,6 +543,7 @@ function on_cursor(buf)
       -- refresh; the preview still shows it (from its opener to the cursor)
       if not hit and info.tree_error then hit = detect.open_at(buf, row, col) end
       if hit then
+        if text_only[buf] then return cursor.preview_text(buf, win, hit) end
         local ctx = M.ctx(buf)
         if ctx then cursor.preview(buf, win, hit, ctx) end
         return
@@ -639,6 +641,8 @@ function M.attach(buf, opts)
   if buf == 0 then buf = vim.api.nvim_get_current_buf() end
   if attached[buf] then return true end
   if not vim.api.nvim_buf_is_valid(buf) then return false end
+  if text_only[buf] then return true end
+  if M._text_fallback(buf) then return M._attach_text(buf) end
   if not env.check() then return false end
   setup_globals()
   attached[buf] = true
@@ -702,11 +706,41 @@ function M.attach(buf, opts)
   return true
 end
 
+--- No graphics protocol here (nothing detected, not switched off with term.backend):
+--- the preview float can still show the formula as Unicode text.
+---@param buf integer
+---@return boolean
+function M._text_fallback(buf)
+  local backend = require("inkmath.term.backend")
+  return backend.get() == nil and backend.why() == "no supported terminal" and config.get(buf).preview.text_fallback
+end
+
+---@param buf integer
+---@return boolean
+function M._attach_text(buf)
+  if not vim.api.nvim_buf_is_valid(buf) then return false end
+  text_only[buf] = true
+  timers[buf] = {} -- debounce() keeps its timers here
+  for _, ev in ipairs({ "CursorMovedI", "ModeChanged" }) do
+    vim.api.nvim_create_autocmd(
+      ev,
+      { group = group, buffer = buf, callback = function() guard("preview", on_cursor, buf) end }
+    )
+  end
+  vim.api.nvim_create_autocmd({ "BufUnload", "BufWipeout" }, {
+    group = group,
+    buffer = buf,
+    callback = function() M.detach(buf) end,
+  })
+  return true
+end
+
 ---@param buf integer
 function M.detach(buf)
   if buf == 0 then buf = vim.api.nvim_get_current_buf() end
   local was = attached[buf]
   attached[buf] = nil
+  text_only[buf] = nil
   bump(buf)
   last_ctx[buf] = nil
   labels.forget(buf)

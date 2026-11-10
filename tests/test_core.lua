@@ -100,6 +100,13 @@ T["cases"] = MiniTest.new_set({
       if orig.preview then
         require("inkmath.view.cursor").preview, orig.preview = orig.preview, nil
       end
+      if orig.backend then
+        local b = require("inkmath.term.backend")
+        b.get, b.why, b.detect, orig.backend = orig.backend.get, orig.backend.why, orig.backend.detect, nil
+      end
+      if orig.preview_text then
+        require("inkmath.view.cursor").preview_text, orig.preview_text = orig.preview_text, nil
+      end
       config.setup({})
       core._reset_notified()
     end,
@@ -516,6 +523,31 @@ T["cases"]["warns once without termguicolors"] = function()
   vim.o.termguicolors = true
   local warns = vim.tbl_filter(function(m) return m:find("termguicolors", 1, true) ~= nil end, notes)
   eq(#warns, 1)
+end
+
+T["cases"]["text preview without a graphics protocol"] = function()
+  local backend = require("inkmath.term.backend")
+  local cursor = require("inkmath.view.cursor")
+  orig.backend = { get = backend.get, why = backend.why, detect = backend.detect }
+  orig.mode, orig.preview_text = core._mode, cursor.preview_text
+  backend.get = function() return nil end
+  backend.why = function() return "no supported terminal" end
+  backend.detect = function() return nil, "no supported terminal" end
+  core._mode = function() return "i" end
+  local shown = {}
+  cursor.preview_text = function(_, _, node) shown[#shown + 1] = node.src end
+  local buf = setup_buf({ "a $\\alpha^2$ b" })
+  eq(core.attach(buf, { sync = true }), true)
+  eq(#marks(buf), 0) -- no images
+  eq(#sent, 0)
+  vim.api.nvim_win_set_cursor(0, { 1, 5 })
+  vim.cmd("doautocmd CursorMovedI")
+  vim.wait(500, function() return #shown > 0 end)
+  eq(shown[1], "\\alpha^2")
+  -- switched off: inkmath stays detached
+  core.detach(buf)
+  config.setup({ preview = { text_fallback = false } })
+  eq(core.attach(buf, { sync = true }), false)
 end
 
 T["cases"]["eviction keeps the preview image"] = function()
