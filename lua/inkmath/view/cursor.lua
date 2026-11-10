@@ -285,6 +285,28 @@ local function apply_error(buf, win, node, err)
   show_float(p, buf, win, node, math.max(width, 11), #lines, " TeX error ")
 end
 
+--- Text preview for terminals without a graphics protocol: the formula as Unicode.
+---@param buf integer
+---@param win integer
+---@param node inkmath.MathNode
+function M.preview_text(buf, win, node)
+  local p = previews[buf] or { seq = 0 }
+  previews[buf] = p
+  if not (vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_win_is_valid(win)) then return end
+  local text = require("inkmath.render.unicode").convert(node.src)
+  local lines = M._wrap(text ~= "" and text or " ", math.max(10, math.min(80, vim.api.nvim_win_get_width(win) - 4)), 3)
+  local fbuf = ensure_buf(p)
+  vim.api.nvim_buf_set_lines(fbuf, 0, -1, false, lines)
+  vim.api.nvim_buf_clear_namespace(fbuf, pns, 0, -1)
+  local width = 1
+  for i, l in ipairs(lines) do
+    vim.api.nvim_buf_set_extmark(fbuf, pns, i - 1, 0, { end_col = #l, hl_group = "Normal" })
+    width = math.max(width, vim.fn.strdisplaywidth(l))
+  end
+  p.img_key = nil
+  show_float(p, buf, win, node, width, #lines, nil)
+end
+
 ---@param buf integer
 ---@param win integer
 ---@param node inkmath.MathNode

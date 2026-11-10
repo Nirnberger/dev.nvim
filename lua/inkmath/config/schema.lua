@@ -177,6 +177,13 @@ M.options = {
     doc = "Put the preview float where blank lines hold it: on the side of the formula with enough blank lines (the 'preview.position' side first), so it covers no text; with none, 'preview.position' decides.",
   },
   {
+    path = "preview.text_fallback",
+    default = true,
+    check = "boolean",
+    scope = "buffer",
+    doc = "In a terminal without a graphics protocol (nothing detected by 'term.backend' = 'auto'), the preview float shows the formula as Unicode text (Greek letters, sub/superscripts, a/b fractions) instead of inkmath staying off.",
+  },
+  {
     path = "preview.error_lines",
     default = 3,
     check = int_ge(0),
